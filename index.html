@@ -811,11 +811,17 @@
         // --- FIREBASE INITIALIZATION ---
         const initializeAppAndData = () => {
             try {
-                const firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : null;
-                if (!firebaseConfig) {
-                    showError("Firebase configuration is missing.");
-                    return;
-                }
+                // Your web app's Firebase configuration
+                const firebaseConfig = {
+                    apiKey: "AIzaSyDbEHK5i4hGsPn22_nzZcZUhfeND3eD7fc",
+                    authDomain: "applicant-ranker.firebaseapp.com",
+                    projectId: "applicant-ranker",
+                    storageBucket: "applicant-ranker.appspot.com",
+                    messagingSenderId: "835014203027",
+                    appId: "1:835014203027:web:75da7394d8e5ec17c41f66",
+                    measurementId: "G-JZ8LLS47YG"
+                };
+
                 const app = initializeApp(firebaseConfig);
                 db = getFirestore(app);
                 auth = getAuth(app);
@@ -824,6 +830,7 @@
                     if (user) {
                         userId = user.uid;
                     } else {
+                        // When deploying for real, you would remove the __initial_auth_token check
                         try {
                             const token = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : null;
                             if (token) {
@@ -845,6 +852,8 @@
             } catch (e) {
                 console.error("Firebase Init Error:", e);
                 showError("Failed to initialize the application.");
+            }
+        };
             }
         };
 
