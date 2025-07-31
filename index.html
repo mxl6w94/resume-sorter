@@ -1,650 +1,905 @@
-import React, { useState, useEffect, useCallback, useRef } from 'react';
-import { initializeApp } from 'firebase/app';
-import { getAuth, signInAnonymously, onAuthStateChanged, signInWithCustomToken } from 'firebase/auth';
-import { getFirestore, collection, doc, onSnapshot, setDoc, deleteDoc, addDoc, getDocs, writeBatch, query } from 'firebase/firestore';
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Applicant Ranking System</title>
+    
+    <!-- Tailwind CSS for styling -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <!-- Google Fonts for a nicer look -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 
-// --- Icon Components (Lucide React SVGs) ---
-const Icon = ({ children, className = '', size = 24 }) => (
-  <svg
-    xmlns="http://www.w3.org/2000/svg"
-    width={size}
-    height={size}
-    viewBox="0 0 24 24"
-    fill="none"
-    stroke="currentColor"
-    strokeWidth="2"
-    strokeLinecap="round"
-    strokeLinejoin="round"
-    className={className}
-  >
-    {children}
-  </svg>
-);
+    <!-- PDF and DOCX parsing libraries (Updated PDF.js version) -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/mammoth/1.6.0/mammoth.browser.min.js"></script>
 
-const ChevronDown = (props) => <Icon {...props}><polyline points="6 9 12 15 18 9"></polyline></Icon>;
-const ChevronUp = (props) => <Icon {...props}><polyline points="18 15 12 9 6 15"></polyline></Icon>;
-const PlusCircle = (props) => <Icon {...props}><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="8" x2="12" y2="16"></line><line x1="8" y1="12" x2="16" y2="12"></line></Icon>;
-const Edit2 = (props) => <Icon {...props}><path d="M17 3a2.828 2.828 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z"></path></Icon>;
-const Trash2 = (props) => <Icon {...props}><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path><line x1="10" y1="11" x2="10" y2="17"></line><line x1="14" y1="11" x2="14" y2="17"></line></Icon>;
-const Save = (props) => <Icon {...props}><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"></path><polyline points="17 21 17 13H7v8"></polyline><polyline points="7 3 7 8H15"></polyline></Icon>;
-const XCircle = (props) => <Icon {...props}><circle cx="12" cy="12" r="10"></circle><line x1="15" y1="9" x2="9" y2="15"></line><line x1="9" y1="9" x2="15" y2="15"></line></Icon>;
-const Info = (props) => <Icon {...props}><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="16" x2="12" y2="12"></line><line x1="12" y1="8" x2="12.01" y2="8"></line></Icon>;
-const Zap = (props) => <Icon {...props}><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"></polygon></Icon>;
-const Loader2 = (props) => <Icon {...props} className={`animate-spin ${props.className}`}><path d="M21 12a9 9 0 1 1-6.219-8.56"></path></Icon>;
-const KeyRound = (props) => <Icon {...props}><path d="M2 18v3c0 .6.4 1 1 1h4v-3h3v-3h2l1.4-1.4a6.5 6.5 0 1 0-4-4Z"></path><circle cx="16.5" cy="7.5" r=".5"></circle></Icon>;
-const Users = (props) => <Icon {...props}><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></Icon>;
-
-
-// --- Initial Data (used as a fallback if Firestore is empty) ---
-const initialApplicants = [
-  { id: '1', name: 'Alice Wonderland', email: 'alice@example.com', skillsScore: 8, yearsExperience: 5, educationLevel: 'Master', interviewScore: 0, notes: 'Strong portfolio in UI/UX.' },
-  { id: '2', name: 'Bob The Builder', email: 'bob@example.com', skillsScore: 6, yearsExperience: 10, educationLevel: 'Bachelor', interviewScore: 0, notes: 'Extensive backend experience.' },
-];
-
-const initialCriteria = [
-  { id: 'skillsScore', name: 'Relevant Skills Score (0-10)', weight: 0.40, type: 'numeric', maxScore: 10 },
-  { id: 'yearsExperience', name: 'Years of Experience', weight: 0.25, type: 'numeric_map', map: [{years:0, score:2}, {years:2, score:5}, {years:5, score:8}, {years:10, score:10}], maxScore: 10 },
-  { id: 'educationLevel', name: 'Education Level', weight: 0.20, type: 'categorical_map', map: { 'N/A': 0, 'High School': 2, 'Associate': 4, 'Bachelor': 7, 'Master': 9, 'PhD': 10 }, maxScore: 10 },
-  { id: 'interviewScore', name: 'Interview Score (0-10)', weight: 0.15, type: 'numeric', maxScore: 10 },
-];
-
-const educationLevels = ['N/A', 'High School', 'Associate', 'Bachelor', 'Master', 'PhD'];
-const generateId = () => Math.random().toString(36).substr(2, 9);
-
-// --- Main Application Component ---
-function App() {
-  // Firebase state
-  const [db, setDb] = useState(null);
-  const [auth, setAuth] = useState(null);
-  const [userId, setUserId] = useState(null);
-  const [isAuthReady, setIsAuthReady] = useState(false);
-
-  // App-specific state
-  const [applicants, setApplicants] = useState([]);
-  const [rankingCriteria, setRankingCriteria] = useState([]);
-  const [editingApplicant, setEditingApplicant] = useState(null);
-  const [showApplicantForm, setShowApplicantForm] = useState(false);
-  const [showCriteriaConfig, setShowCriteriaConfig] = useState(false);
-  const [searchTerm, setSearchTerm] = useState('');
-  const [isLoading, setIsLoading] = useState(true);
-  const [error, setError] = useState(null);
-
-  const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
-
-  // --- Firebase Initialization and Auth ---
-  useEffect(() => {
-    try {
-      const firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : null;
-      if (!firebaseConfig) {
-          setError("Firebase configuration is missing.");
-          setIsLoading(false);
-          return;
-      }
-      const app = initializeApp(firebaseConfig);
-      const firestore = getFirestore(app);
-      const authInstance = getAuth(app);
-      setDb(firestore);
-      setAuth(authInstance);
-
-      const unsubscribe = onAuthStateChanged(authInstance, async (user) => {
-        if (user) {
-          setUserId(user.uid);
-        } else {
-          try {
-            if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
-              await signInWithCustomToken(authInstance, __initial_auth_token);
-            } else {
-              await signInAnonymously(authInstance);
-            }
-          } catch (authError) {
-            console.error("Authentication Error:", authError);
-            setError("Failed to authenticate. Please refresh the page.");
-          }
+    <style>
+        /* Use the Inter font family */
+        body {
+            font-family: 'Inter', sans-serif;
         }
-        setIsAuthReady(true);
-      });
-      return () => unsubscribe();
-    } catch (e) {
-      console.error("Firebase Init Error:", e);
-      setError("Failed to initialize the application. Check console for details.");
-      setIsLoading(false);
-    }
-  }, []);
-
-  // --- Firestore Data Fetching ---
-  useEffect(() => {
-    if (!isAuthReady || !db) return;
-
-    setIsLoading(true);
-    const applicantsPath = `artifacts/${appId}/public/data/applicants`;
-    const criteriaPath = `artifacts/${appId}/public/data/criteria`;
-
-    const applicantsQuery = query(collection(db, applicantsPath));
-    const criteriaQuery = query(collection(db, criteriaPath));
-
-    const unsubApplicants = onSnapshot(applicantsQuery, (snapshot) => {
-      const applicantsList = snapshot.docs.map(doc => ({ ...doc.data(), id: doc.id }));
-      setApplicants(applicantsList);
-      setIsLoading(false);
-    }, (err) => {
-      console.error("Error fetching applicants:", err);
-      setError("Could not load applicant data.");
-      setIsLoading(false);
-    });
-
-    const unsubCriteria = onSnapshot(criteriaQuery, async (snapshot) => {
-      let criteriaList = snapshot.docs.map(doc => ({ ...doc.data(), id: doc.id }));
-      if (criteriaList.length === 0) {
-        // If no criteria in Firestore, populate with initial data
-        console.log("No criteria found in Firestore, seeding with initial data...");
-        const batch = writeBatch(db);
-        initialCriteria.forEach(crit => {
-            const docRef = doc(db, criteriaPath, crit.id);
-            batch.set(docRef, crit);
-        });
-        await batch.commit();
-        setRankingCriteria(initialCriteria);
-      } else {
-        setRankingCriteria(criteriaList);
-      }
-    }, (err) => {
-      console.error("Error fetching criteria:", err);
-      setError("Could not load ranking criteria.");
-    });
-
-    return () => {
-      unsubApplicants();
-      unsubCriteria();
-    };
-  }, [isAuthReady, db, appId]);
-
-  // --- Core Logic ---
-  const calculateScore = useCallback((applicant) => {
-    if (rankingCriteria.length === 0) return 0;
-    let totalScore = 0;
-    let maxPossibleScoreWeighted = 0;
-
-    rankingCriteria.forEach(criterion => {
-      let value = applicant[criterion.id];
-      let criterionScore = 0;
-      if (value === undefined || value === null) value = 0;
-      
-      if (criterion.type === 'numeric') {
-        criterionScore = Math.min(parseFloat(value) || 0, criterion.maxScore);
-      } else if (criterion.type === 'categorical_map' && criterion.map) {
-        criterionScore = criterion.map[value] || 0;
-      } else if (criterion.type === 'numeric_map' && criterion.map) {
-        let mappedScore = 0;
-        const sortedMap = [...criterion.map].sort((a,b) => a.years - b.years);
-        for (let i = sortedMap.length - 1; i >= 0; i--) {
-          if (parseFloat(value) >= sortedMap[i].years) {
-            mappedScore = sortedMap[i].score;
-            break;
-          }
+        /* Simple animation for the modal */
+        .modal-enter {
+            opacity: 0;
+            transform: scale(0.95);
         }
-        criterionScore = mappedScore;
-      }
-      totalScore += (criterionScore / criterion.maxScore) * criterion.weight;
-    });
-    
-    const totalWeight = rankingCriteria.reduce((sum, crit) => sum + parseFloat(crit.weight || 0), 0);
-    if (totalWeight === 0) return 0;
+        .modal-enter-active {
+            opacity: 1;
+            transform: scale(1);
+            transition: opacity 300ms, transform 300ms;
+        }
+        /* Custom scrollbar for better aesthetics */
+        .custom-scrollbar::-webkit-scrollbar {
+            width: 8px;
+        }
+        .custom-scrollbar::-webkit-scrollbar-track {
+            background: #f1f5f9;
+        }
+        .custom-scrollbar::-webkit-scrollbar-thumb {
+            background: #94a3b8;
+            border-radius: 4px;
+        }
+        .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+            background: #64748b;
+        }
+        .drop-zone-highlight {
+            border-color: #0ea5e9; /* sky-500 */
+            background-color: #f0f9ff; /* sky-50 */
+        }
+    </style>
+</head>
+<body class="bg-gradient-to-br from-slate-100 to-sky-100">
 
-    return (totalScore / totalWeight) * 100;
-  }, [rankingCriteria]);
-
-  // --- Data Handlers (CRUD) ---
-  const handleSaveApplicant = async (applicantData) => {
-    if (!db) return;
-    const applicantsPath = `artifacts/${appId}/public/data/applicants`;
-    try {
-      if (editingApplicant) {
-        const docRef = doc(db, applicantsPath, editingApplicant.id);
-        await setDoc(docRef, applicantData, { merge: true });
-      } else {
-        await addDoc(collection(db, applicantsPath), applicantData);
-      }
-      setEditingApplicant(null);
-      setShowApplicantForm(false);
-    } catch (e) {
-      console.error("Error saving applicant:", e);
-      setError("Failed to save applicant.");
-    }
-  };
-
-  const handleDeleteApplicant = async (applicantId) => {
-    if (!db) return;
-    const applicantsPath = `artifacts/${appId}/public/data/applicants`;
-    try {
-      await deleteDoc(doc(db, applicantsPath, applicantId));
-    } catch (e) {
-        console.error("Error deleting applicant:", e);
-        setError("Failed to delete applicant.");
-    }
-  };
-
-  const handleEditApplicant = (applicant) => {
-    setEditingApplicant(applicant);
-    setShowApplicantForm(true);
-  };
-
-  const handleUpdateCriteria = async (updatedCriteria) => {
-    if (!db) return;
-    const criteriaPath = `artifacts/${appId}/public/data/criteria`;
-    const totalWeight = updatedCriteria.reduce((sum, crit) => sum + parseFloat(crit.weight || 0), 0);
-    if (Math.abs(totalWeight - 1.0) > 0.01 && updatedCriteria.length > 0) {
-      console.warn(`Total weights should sum to 1.00. Current sum: ${totalWeight.toFixed(2)}.`);
-    }
-    try {
-        const batch = writeBatch(db);
-        updatedCriteria.forEach(crit => {
-            const docRef = doc(db, criteriaPath, crit.id);
-            batch.set(docRef, crit);
-        });
-        await batch.commit();
-    } catch (e) {
-        console.error("Error updating criteria:", e);
-        setError("Failed to update criteria.");
-    }
-  };
-
-  const rankedApplicants = applicants
-    .map(applicant => ({
-      ...applicant,
-      score: calculateScore(applicant),
-    }))
-    .filter(applicant => applicant.name.toLowerCase().includes(searchTerm.toLowerCase()))
-    .sort((a, b) => b.score - a.score);
-
-  // --- Render Logic ---
-  if (error) {
-    return <div className="min-h-screen bg-red-50 flex items-center justify-center p-4"><div className="bg-white p-8 rounded-lg shadow-xl text-center"><h2 className="text-2xl font-bold text-red-700 mb-4">An Error Occurred</h2><p className="text-red-600">{error}</p></div></div>;
-  }
-
-  if (isLoading) {
-    return <div className="min-h-screen bg-slate-100 flex items-center justify-center"><Loader2 size={48} className="text-blue-500" /></div>;
-  }
-  
-  const Section = ({ title, children, isOpen, onToggle }) => (
-    <div className="mb-6 bg-white shadow-lg rounded-lg overflow-hidden">
-      <button onClick={onToggle} className="w-full p-4 text-left bg-gray-100 hover:bg-gray-200 focus:outline-none flex justify-between items-center transition-colors duration-150">
-        <h2 className="text-xl font-semibold text-gray-700">{title}</h2>
-        {isOpen ? <ChevronUp className="h-6 w-6 text-gray-600" /> : <ChevronDown className="h-6 w-6 text-gray-600" />}
-      </button>
-      {isOpen && <div className="p-4 border-t border-gray-200">{children}</div>}
-    </div>
-  );
-
-  return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-100 to-sky-100 p-4 sm:p-6 md:p-8 font-sans">
-      <header className="mb-8 text-center">
-        <h1 className="text-4xl font-bold text-slate-700">Applicant Ranking System</h1>
-        <p className="text-slate-500 mt-2">Efficiently compare and rank job candidates.</p>
-        {userId && (
-            <div className="mt-4 inline-flex items-center bg-blue-100 text-blue-800 text-xs font-semibold px-2.5 py-1 rounded-full">
-                <Users size={14} className="mr-2"/>
-                <span className="mr-1 font-normal">User ID:</span> {userId}
-            </div>
-        )}
-      </header>
-
-      <div className="mb-6 flex flex-col sm:flex-row justify-between items-center gap-4">
-        <button onClick={() => { setEditingApplicant(null); setShowApplicantForm(true); }} className="flex items-center bg-blue-500 hover:bg-blue-600 text-white font-semibold py-2 px-4 rounded-lg shadow-md transition-transform transform hover:scale-105">
-          <PlusCircle className="h-5 w-5 mr-2" /> Add New Applicant
-        </button>
-        <input type="text" placeholder="Search applicants by name..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className="p-2 border border-gray-300 rounded-lg shadow-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent w-full sm:w-auto" />
-      </div>
-      
-      {showApplicantForm && (
-        <ApplicantForm
-          applicant={editingApplicant}
-          onSave={handleSaveApplicant}
-          onClose={() => { setShowApplicantForm(false); setEditingApplicant(null); }}
-          criteria={rankingCriteria}
-        />
-      )}
-
-      <Section title="Configuration Panel" isOpen={showCriteriaConfig} onToggle={() => setShowCriteriaConfig(!showCriteriaConfig)}>
-        <CriteriaConfiguration criteria={rankingCriteria} onUpdateCriteria={handleUpdateCriteria} />
-      </Section>
-
-      <div className="bg-white shadow-xl rounded-lg overflow-hidden">
-        <div className="p-4 bg-gray-50 border-b border-gray-200">
-          <h2 className="text-2xl font-semibold text-gray-700">Ranked Applicants</h2>
-          {rankedApplicants.length === 0 && <p className="text-gray-500 mt-2">No applicants found or matching search.</p>}
-        </div>
-        {rankedApplicants.length > 0 && (
-          <div className="overflow-x-auto">
-            <table className="min-w-full divide-y divide-gray-200">
-              <thead className="bg-gray-100">
-                <tr>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Rank</th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Name</th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider hidden sm:table-cell">Email</th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Score</th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
-                </tr>
-              </thead>
-              <tbody className="bg-white divide-y divide-gray-200">
-                {rankedApplicants.map((applicant, index) => (
-                  <ApplicantCard key={applicant.id} applicant={applicant} rank={index + 1} onEdit={handleEditApplicant} onDelete={handleDeleteApplicant} criteria={rankingCriteria} />
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
-      </div>
-      <footer className="mt-12 text-center text-sm text-slate-500">
-        <p>Applicant Ranking System &copy; {new Date().getFullYear()}</p>
-      </footer>
-    </div>
-  );
-}
-
-// --- Applicant Form Component (Modal) ---
-function ApplicantForm({ applicant, onSave, onClose, criteria }) {
-  const [formData, setFormData] = useState({});
-  const [pastedAppText, setPastedAppText] = useState('');
-  const [isAiProcessing, setIsAiProcessing] = useState(false);
-  const [aiError, setAiError] = useState('');
-  const [apiKey, setApiKey] = useState('');
-  const [showApiKeyInput, setShowApiKeyInput] = useState(false);
-
-  useEffect(() => {
-    const initialData = { name: '', email: '', notes: '' };
-    criteria.forEach(crit => {
-      if (crit.id === 'educationLevel') {
-        initialData[crit.id] = educationLevels[0];
-      } else if (crit.type.includes('numeric')) {
-        initialData[crit.id] = 0;
-      } else if (crit.type === 'categorical_map' && crit.map) {
-        initialData[crit.id] = Object.keys(crit.map)[0] || '';
-      }
-    });
-    setFormData(applicant ? { ...initialData, ...applicant } : initialData);
-  }, [applicant, criteria]);
-
-  const handleChange = (e) => {
-    const { name, value, type } = e.target;
-    setFormData(prev => ({ ...prev, [name]: type === 'number' ? parseFloat(value) : value }));
-  };
-
-  const handleSubmit = (e) => {
-    e.preventDefault();
-    onSave(formData);
-  };
-
-  // --- AI Autofill with Gemini (Simulated Cloud Function) ---
-  const handleAiAutofill = async () => {
-    if (!pastedAppText.trim()) {
-      setAiError("Please paste the application text first.");
-      return;
-    }
-    if (!apiKey) {
-      setShowApiKeyInput(true);
-      setAiError("A Gemini API Key is required for this feature.");
-      return;
-    }
-    
-    setIsAiProcessing(true);
-    setAiError('');
-    
-    // This simulates calling a secure Firebase Cloud Function.
-    // In a real deployment, the API key would NOT be here on the client.
-    const prompt = `You are an expert HR assistant... Extract information from the following text into a JSON object.
-      Application Text: --- ${pastedAppText} ---
-      Desired JSON Output Structure: { "name": "...", "email": "...", "skillsScore": number, "yearsExperience": number, "educationLevel": "(${educationLevels.join(', ')})", "notes": "..." }`;
-      
-    const generationConfig = {
-      responseMimeType: "application/json",
-      responseSchema: {
-        type: "OBJECT",
-        properties: {
-          "name": { "type": "STRING" }, "email": { "type": "STRING" },
-          "skillsScore": { "type": "NUMBER" }, "yearsExperience": { "type": "NUMBER" },
-          "educationLevel": { "type": "STRING", "enum": educationLevels },
-          "notes": { "type": "STRING" }
-        },
-        required: ["name", "email", "notes", "skillsScore", "yearsExperience", "educationLevel"]
-      }
-    };
-
-    try {
-      const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`;
-      const payload = { contents: [{ role: "user", parts: [{ text: prompt }] }], generationConfig };
-      const response = await fetch(apiUrl, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload)
-      });
-
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData?.error?.message || `API request failed with status ${response.status}`);
-      }
-      
-      const result = await response.json();
-      const aiJsonText = result.candidates?.[0]?.content?.parts?.[0]?.text;
-      if (!aiJsonText) throw new Error("AI returned an unexpected data structure.");
-
-      const extractedData = JSON.parse(aiJsonText);
-      setFormData(prev => ({
-        ...prev,
-        name: extractedData.name || prev.name,
-        email: extractedData.email || prev.email,
-        skillsScore: parseFloat(extractedData.skillsScore) || 0,
-        yearsExperience: parseFloat(extractedData.yearsExperience) || 0,
-        educationLevel: educationLevels.includes(extractedData.educationLevel) ? extractedData.educationLevel : prev.educationLevel,
-        notes: extractedData.notes || prev.notes,
-      }));
-      setPastedAppText('');
-    } catch (error) {
-      console.error("Error during AI autofill:", error);
-      setAiError(`Failed to process with AI: ${error.message}. Please check your API key and try again.`);
-      setShowApiKeyInput(true);
-    } finally {
-      setIsAiProcessing(false);
-    }
-  };
-
-  return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50 transition-opacity duration-300">
-      <div className="bg-white p-6 rounded-lg shadow-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto">
-        <div className="flex justify-between items-center mb-6">
-          <h3 className="text-2xl font-semibold text-gray-700">{applicant ? 'Edit Applicant' : 'Add New Applicant'}</h3>
-          <button onClick={onClose} className="text-gray-500 hover:text-gray-700"><XCircle size={24} /></button>
-        </div>
-
-        <div className="mb-6 p-4 border border-dashed border-sky-400 rounded-lg bg-sky-50">
-          <label htmlFor="pastedAppText" className="block text-sm font-medium text-sky-700 mb-1">Paste Application Text for AI Autofill:</label>
-          <textarea id="pastedAppText" rows="5" value={pastedAppText} onChange={(e) => setPastedAppText(e.target.value)} placeholder="Copy and paste a resume or application text here..." className="mt-1 block w-full px-3 py-2 border border-sky-300 rounded-md shadow-sm focus:outline-none focus:ring-sky-500 focus:border-sky-500 sm:text-sm" disabled={isAiProcessing} />
-          <button type="button" onClick={handleAiAutofill} disabled={isAiProcessing || !pastedAppText.trim()} className="mt-2 w-full flex items-center justify-center px-4 py-2 text-sm font-medium text-white bg-sky-600 hover:bg-sky-700 border border-transparent rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-sky-500 disabled:bg-gray-400">
-            {isAiProcessing ? <Loader2 className="h-5 w-5 mr-2" /> : <Zap className="h-5 w-5 mr-2" />}
-            {isAiProcessing ? 'Processing...' : 'Autofill with AI'}
-          </button>
-          {aiError && <p className="mt-2 text-xs text-red-600">{aiError}</p>}
-          {showApiKeyInput && (
-            <div className="mt-3 p-3 border border-amber-400 bg-amber-50 rounded-md">
-                <label htmlFor="apiKeyInput" className="block text-xs font-medium text-amber-700">Enter your Gemini API Key:</label>
-                <div className="flex items-center mt-1">
-                    <KeyRound className="h-4 w-4 mr-2 text-amber-600" />
-                    <input type="password" id="apiKeyInput" value={apiKey} onChange={(e) => setApiKey(e.target.value)} placeholder="Your API key is stored locally" className="flex-grow px-2 py-1 border border-amber-300 rounded-l-md shadow-sm focus:outline-none focus:ring-amber-500 focus:border-amber-500 sm:text-xs" />
-                    <button type="button" onClick={() => setShowApiKeyInput(false)} className="px-3 py-1 bg-amber-500 hover:bg-amber-600 text-white text-xs font-medium rounded-r-md border border-amber-500">Save</button>
-                </div>
-            </div>
-          )}
-        </div>
+    <!-- Main Application Container -->
+    <div id="app-container" class="p-4 sm:p-6 md:p-8 font-sans">
         
-        <form onSubmit={handleSubmit} className="space-y-4">
-          <div>
-            <label htmlFor="name" className="block text-sm font-medium text-gray-700">Full Name</label>
-            <input type="text" name="name" id="name" value={formData.name || ''} onChange={handleChange} required className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm" />
-          </div>
-          <div>
-            <label htmlFor="email" className="block text-sm font-medium text-gray-700">Email</label>
-            <input type="email" name="email" id="email" value={formData.email || ''} onChange={handleChange} required className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm" />
-          </div>
-
-          {criteria.map(crit => {
-            if (crit.id === 'educationLevel') {
-              return (
-                <div key={crit.id}>
-                  <label htmlFor={crit.id} className="block text-sm font-medium text-gray-700">{crit.name}</label>
-                  <select name={crit.id} id={crit.id} value={formData[crit.id] || educationLevels[0]} onChange={handleChange} className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm">
-                    {educationLevels.map(level => <option key={level} value={level}>{level}</option>)}
-                  </select>
-                </div>
-              );
-            }
-            if (crit.type.includes('numeric')) {
-              const maxVal = crit.type === 'numeric' ? crit.maxScore : 50;
-              const stepVal = crit.type === 'numeric_map' ? 0.5 : 1;
-              return (
-                <div key={crit.id}>
-                  <label htmlFor={crit.id} className="block text-sm font-medium text-gray-700">{crit.name}</label>
-                  <input type="number" name={crit.id} id={crit.id} value={formData[crit.id] || 0} onChange={handleChange} min="0" max={maxVal} step={stepVal} className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm" />
-                </div>
-              );
-            }
-            return null;
-          })}
-          <div>
-            <label htmlFor="notes" className="block text-sm font-medium text-gray-700">Notes/Summary</label>
-            <textarea name="notes" id="notes" value={formData.notes || ''} onChange={handleChange} rows="3" className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm"></textarea>
-          </div>
-
-          <div className="flex justify-end space-x-3 pt-2">
-            <button type="button" onClick={onClose} className="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 hover:bg-gray-200 border border-gray-300 rounded-md shadow-sm">Cancel</button>
-            <button type="submit" className="px-4 py-2 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 border border-transparent rounded-md shadow-sm">
-              <Save className="inline h-4 w-4 mr-1" /> {applicant ? 'Update' : 'Save'} Applicant
-            </button>
-          </div>
-        </form>
-      </div>
-    </div>
-  );
-}
-
-// --- Criteria Configuration Component ---
-function CriteriaConfiguration({ criteria, onUpdateCriteria }) {
-  const [localCriteria, setLocalCriteria] = useState([]);
-
-  useEffect(() => {
-    setLocalCriteria(JSON.parse(JSON.stringify(criteria)));
-  }, [criteria]);
-
-  const handleCritChange = (index, field, value) => {
-    const updated = [...localCriteria];
-    if (field === 'weight' || field === 'maxScore') {
-      updated[index][field] = parseFloat(value) || 0;
-    } else {
-      updated[index][field] = value;
-    }
-    setLocalCriteria(updated);
-  };
-  
-  const handleSaveCriteria = () => {
-    onUpdateCriteria(localCriteria);
-  };
-
-  const addCriterion = () => {
-    setLocalCriteria([...localCriteria, { id: generateId(), name: 'New Criterion', weight: 0.1, type: 'numeric', maxScore: 10 }]);
-  };
-
-  const removeCriterion = (idToRemove) => {
-    const updated = localCriteria.filter((crit) => crit.id !== idToRemove);
-    setLocalCriteria(updated);
-    // Note: This only removes from local state. Saving will sync deletion with Firestore.
-  };
-
-  const totalWeight = localCriteria.reduce((sum, crit) => sum + parseFloat(crit.weight || 0), 0);
-
-  return (
-    <div className="space-y-6">
-      <div className="flex justify-between items-center">
-        <h3 className="text-lg font-medium text-gray-800">Define Ranking Criteria & Weights</h3>
-        <button onClick={addCriterion} className="flex items-center bg-green-500 hover:bg-green-600 text-white font-semibold py-2 px-3 rounded-lg shadow text-sm">
-          <PlusCircle size={18} className="mr-1" /> Add Criterion
-        </button>
-      </div>
-      <div className="space-y-4">
-        {localCriteria.map((crit, index) => (
-          <div key={crit.id} className="p-3 border border-gray-200 rounded-md bg-gray-50 grid grid-cols-1 md:grid-cols-12 gap-3 items-center">
-            <input type="text" value={crit.name} onChange={(e) => handleCritChange(index, 'name', e.target.value)} placeholder="Criterion Name" className="md:col-span-4 p-2 border border-gray-300 rounded-md text-sm" />
-            <select value={crit.type} onChange={(e) => handleCritChange(index, 'type', e.target.value)} className="md:col-span-3 p-2 border border-gray-300 rounded-md text-sm">
-              <option value="numeric">Numeric Score (0-Max)</option>
-              <option value="categorical_map">Category Map (predefined)</option>
-              <option value="numeric_map">Numeric Range Map (predefined)</option>
-            </select>
-            <input type="number" value={crit.weight} onChange={(e) => handleCritChange(index, 'weight', e.target.value)} placeholder="Weight" step="0.01" min="0" max="1" className="md:col-span-2 p-2 border border-gray-300 rounded-md text-sm" />
-            <input type="number" value={crit.maxScore} onChange={(e) => handleCritChange(index, 'maxScore', e.target.value)} placeholder="Max Score" step="1" min="0" className="md:col-span-2 p-2 border border-gray-300 rounded-md text-sm" title="Max possible score for normalization" />
-            <button onClick={() => removeCriterion(crit.id)} className="md:col-span-1 text-red-500 hover:text-red-700 flex justify-center items-center">
-              <Trash2 size={18} />
-            </button>
-          </div>
-        ))}
-      </div>
-      <div className="mt-4 flex justify-between items-center">
-        <p className={`text-sm ${Math.abs(totalWeight - 1.0) > 0.01 && localCriteria.length > 0 ? 'text-red-600 font-semibold' : 'text-gray-600'}`}>
-          Total Weight: {totalWeight.toFixed(2)} (Should be 1.00)
-        </p>
-        <button onClick={handleSaveCriteria} className="flex items-center bg-blue-500 hover:bg-blue-600 text-white font-semibold py-2 px-4 rounded-lg shadow-md text-sm">
-          <Save size={18} className="mr-2" /> Save Criteria
-        </button>
-      </div>
-    </div>
-  );
-}
-
-// --- Applicant Card Component (Table Row) ---
-function ApplicantCard({ applicant, rank, onEdit, onDelete, criteria }) {
-  const [expanded, setExpanded] = useState(false);
-
-  const getCriterionValueDisplay = (applicant, criterion) => {
-    const value = applicant[criterion.id];
-    if (value === undefined || value === null) return 'N/A';
-    if (typeof value === 'number') return value.toFixed(1);
-    return String(value);
-  };
-
-  return (
-    <>
-      <tr className={`hover:bg-sky-50 transition-colors duration-150 ${expanded ? 'bg-sky-50' : ''}`}>
-        <td className="px-4 py-3 whitespace-nowrap">
-          <span className={`inline-block text-sm font-semibold px-2 py-1 rounded-full ${rank === 1 ? 'bg-green-100 text-green-700' : rank === 2 ? 'bg-yellow-100 text-yellow-700' : rank === 3 ? 'bg-orange-100 text-orange-700' : 'bg-gray-100 text-gray-700'}`}>
-            #{rank}
-          </span>
-        </td>
-        <td className="px-4 py-3 whitespace-nowrap"><div className="text-sm font-medium text-gray-900">{applicant.name}</div></td>
-        <td className="px-4 py-3 whitespace-nowrap hidden sm:table-cell"><div className="text-sm text-gray-500">{applicant.email}</div></td>
-        <td className="px-4 py-3 whitespace-nowrap"><div className="text-sm font-bold text-blue-600">{applicant.score.toFixed(2)}</div></td>
-        <td className="px-4 py-3 whitespace-nowrap text-sm font-medium">
-          <button onClick={() => setExpanded(!expanded)} className="text-indigo-600 hover:text-indigo-900 mr-2 p-1"><ChevronDown size={18} /></button>
-          <button onClick={() => onEdit(applicant)} className="text-blue-600 hover:text-blue-900 mr-2 p-1"><Edit2 size={18} /></button>
-          <button onClick={() => onDelete(applicant.id)} className="text-red-600 hover:text-red-900 p-1"><Trash2 size={18} /></button>
-        </td>
-      </tr>
-      {expanded && (
-        <tr className="bg-slate-50">
-          <td colSpan="5" className="px-4 py-3">
-            <div className="text-sm text-gray-700 space-y-2">
-              <p><strong>Notes:</strong> {applicant.notes || 'N/A'}</p>
-              <div className="mt-2 pt-2 border-t">
-                <h4 className="font-semibold mb-1">Score Inputs:</h4>
-                <ul className="list-disc list-inside pl-2 space-y-0.5 text-xs">
-                  {criteria.map(crit => (
-                    <li key={crit.id}>
-                      {crit.name}: {getCriterionValueDisplay(applicant, crit)} ({(crit.weight*100).toFixed(0)}% weight)
-                    </li>
-                  ))}
-                </ul>
-              </div>
+        <!-- Header -->
+        <header class="mb-8 text-center">
+            <h1 class="text-4xl font-bold text-slate-700">Applicant Ranking System</h1>
+            <p class="text-slate-500 mt-2">Efficiently compare and rank job candidates.</p>
+            <div id="user-id-display" class="mt-4 inline-flex items-center bg-blue-100 text-blue-800 text-xs font-semibold px-2.5 py-1 rounded-full hidden">
+                <!-- User ID will be inserted here by JS -->
             </div>
-          </td>
-        </tr>
-      )}
-    </>
-  );
-}
+        </header>
 
-export default App;
+        <!-- Main Controls -->
+        <div class="mb-6 flex flex-col sm:flex-row justify-between items-center gap-4">
+            <button id="add-applicant-btn" class="flex items-center bg-blue-500 hover:bg-blue-600 text-white font-semibold py-2 px-4 rounded-lg shadow-md transition-transform transform hover:scale-105">
+                <!-- PlusCircle Icon -->
+                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="mr-2"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="8" x2="12" y2="16"></line><line x1="8" y1="12" x2="16" y2="12"></line></svg>
+                Add New Applicant
+            </button>
+            <input type="text" id="search-input" placeholder="Search applicants by name..." class="p-2 border border-gray-300 rounded-lg shadow-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent w-full sm:w-auto">
+        </div>
+
+        <!-- Configuration Panel Section -->
+        <div class="mb-6 bg-white shadow-lg rounded-lg overflow-hidden">
+            <button id="toggle-config-btn" class="w-full p-4 text-left bg-gray-100 hover:bg-gray-200 focus:outline-none flex justify-between items-center transition-colors duration-150">
+                <h2 class="text-xl font-semibold text-gray-700">Configuration Panel</h2>
+                <div id="config-chevron">
+                    <!-- ChevronDown Icon -->
+                    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"></polyline></svg>
+                </div>
+            </button>
+            <div id="config-panel" class="p-4 border-t border-gray-200 hidden">
+                <!-- Criteria configuration will be rendered here by JS -->
+            </div>
+        </div>
+
+        <!-- Ranked Applicants Table -->
+        <div class="bg-white shadow-xl rounded-lg overflow-hidden">
+            <div class="p-4 bg-gray-50 border-b border-gray-200">
+                <h2 class="text-2xl font-semibold text-gray-700">Ranked Applicants</h2>
+                <p id="no-applicants-msg" class="text-gray-500 mt-2 hidden">No applicants found or matching search.</p>
+            </div>
+            <div class="overflow-x-auto">
+                <table class="min-w-full divide-y divide-gray-200">
+                    <thead class="bg-gray-100">
+                        <tr>
+                            <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Rank</th>
+                            <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Name</th>
+                            <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider hidden sm:table-cell">Email</th>
+                            <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Score</th>
+                            <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody id="applicants-tbody" class="bg-white divide-y divide-gray-200">
+                        <!-- Applicant rows will be rendered here by JS -->
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- Footer -->
+        <footer class="mt-12 text-center text-sm text-slate-500">
+            <p>Applicant Ranking System &copy; <span id="footer-year"></span></p>
+        </footer>
+    </div>
+    
+    <!-- Loading Spinner Overlay -->
+    <div id="loading-overlay" class="fixed inset-0 bg-slate-100 bg-opacity-75 flex items-center justify-center z-50">
+        <svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="animate-spin text-blue-500"><path d="M21 12a9 9 0 1 1-6.219-8.56"></path></svg>
+    </div>
+
+    <!-- Error Display -->
+     <div id="error-display" class="hidden fixed top-5 right-5 bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded-lg shadow-lg z-50" role="alert">
+        <strong class="font-bold">Error!</strong>
+        <span id="error-message" class="block sm:inline">Something went wrong.</span>
+    </div>
+
+    <!-- Applicant Form Modal -->
+    <div id="applicant-form-modal" class="hidden fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-40 modal-enter">
+        <div id="applicant-form-container" class="bg-white p-6 rounded-lg shadow-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto custom-scrollbar">
+            <!-- Form content will be rendered here by JS -->
+        </div>
+    </div>
+
+    <!-- Firebase SDKs -->
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+        import { getAuth, signInAnonymously, onAuthStateChanged, signInWithCustomToken } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { getFirestore, collection, doc, onSnapshot, setDoc, deleteDoc, addDoc, writeBatch, query } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+
+        // --- GLOBAL STATE AND CONSTANTS ---
+        let db, auth;
+        let userId;
+        let applicants = [];
+        let rankingCriteria = [];
+        let editingApplicant = null; // Holds the applicant object being edited
+        let unsubscribeApplicants, unsubscribeCriteria; // To detach listeners
+        let extractedFileText = ''; // To hold text from parsed files
+
+        const educationLevels = ['N/A', 'High School', 'Associate', 'Bachelor', 'Master', 'PhD'];
+        const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
+        const initialCriteria = [
+            { id: 'skillsScore', name: 'Relevant Skills Score (0-10)', weight: 0.40, type: 'numeric', maxScore: 10, isAiPowered: true, aiPrompt: 'Based on the resume, rate the candidate\'s relevant technical skills on a scale of 0-10.' },
+            { id: 'yearsExperience', name: 'Years of Experience', weight: 0.25, type: 'numeric_map', map: [{years:0, score:2}, {years:2, score:5}, {years:5, score:8}, {years:10, score:10}], maxScore: 10, isAiPowered: false, aiPrompt: '' },
+            { id: 'educationLevel', name: 'Education Level', weight: 0.20, type: 'categorical_map', map: { 'N/A': 0, 'High School': 2, 'Associate': 4, 'Bachelor': 7, 'Master': 9, 'PhD': 10 }, maxScore: 10, isAiPowered: false, aiPrompt: '' },
+            { id: 'interviewScore', name: 'Interview Score (0-10)', weight: 0.15, type: 'numeric', maxScore: 10, isAiPowered: false, aiPrompt: '' },
+        ];
+
+
+        // --- DOM ELEMENT REFERENCES ---
+        const loadingOverlay = document.getElementById('loading-overlay');
+        const errorDisplay = document.getElementById('error-display');
+        const errorMessageEl = document.getElementById('error-message');
+        const applicantsTbody = document.getElementById('applicants-tbody');
+        const noApplicantsMsg = document.getElementById('no-applicants-msg');
+        const searchInput = document.getElementById('search-input');
+        const addApplicantBtn = document.getElementById('add-applicant-btn');
+        const applicantFormModal = document.getElementById('applicant-form-modal');
+        const applicantFormContainer = document.getElementById('applicant-form-container');
+        const configPanel = document.getElementById('config-panel');
+        const toggleConfigBtn = document.getElementById('toggle-config-btn');
+        const configChevron = document.getElementById('config-chevron');
+        const userIdDisplay = document.getElementById('user-id-display');
+        document.getElementById('footer-year').textContent = new Date().getFullYear();
+
+
+        // --- UTILITY AND HELPER FUNCTIONS ---
+        const showError = (message) => {
+            errorMessageEl.textContent = message;
+            errorDisplay.classList.remove('hidden');
+            loadingOverlay.classList.add('hidden'); // Ensure loading is hidden on error
+            setTimeout(() => errorDisplay.classList.add('hidden'), 5000);
+        };
+
+        const generateId = () => Math.random().toString(36).substr(2, 9);
+        
+        // --- CORE LOGIC ---
+        const calculateScore = (applicant) => {
+            if (rankingCriteria.length === 0) return 0;
+            let totalScore = 0;
+
+            rankingCriteria.forEach(criterion => {
+                let value = applicant[criterion.id];
+                let criterionScore = 0;
+                if (value === undefined || value === null) value = 0;
+                
+                if (criterion.type === 'numeric') {
+                    criterionScore = Math.min(parseFloat(value) || 0, criterion.maxScore);
+                } else if (criterion.type === 'categorical_map' && criterion.map) {
+                    criterionScore = criterion.map[value] || 0;
+                } else if (criterion.type === 'numeric_map' && criterion.map) {
+                    let mappedScore = 0;
+                    const sortedMap = [...criterion.map].sort((a, b) => a.years - b.years);
+                    for (let i = sortedMap.length - 1; i >= 0; i--) {
+                        if (parseFloat(value) >= sortedMap[i].years) {
+                            mappedScore = sortedMap[i].score;
+                            break;
+                        }
+                    }
+                    criterionScore = mappedScore;
+                }
+                // Normalize score for each criterion before applying weight
+                if (criterion.maxScore > 0) {
+                    totalScore += (criterionScore / criterion.maxScore) * criterion.weight;
+                }
+            });
+            
+            const totalWeight = rankingCriteria.reduce((sum, crit) => sum + parseFloat(crit.weight || 0), 0);
+            if (totalWeight === 0) return 0;
+
+            // Final score is a percentage of the weighted total
+            return (totalScore / totalWeight) * 100;
+        };
+
+        // --- RENDERING FUNCTIONS ---
+        const renderApplicants = () => {
+            const searchTerm = searchInput.value.toLowerCase();
+            const rankedApplicants = applicants
+                .map(applicant => ({
+                    ...applicant,
+                    score: calculateScore(applicant),
+                }))
+                .filter(applicant => applicant.name.toLowerCase().includes(searchTerm))
+                .sort((a, b) => b.score - a.score);
+
+            applicantsTbody.innerHTML = ''; // Clear existing rows
+            if (rankedApplicants.length === 0) {
+                noApplicantsMsg.classList.remove('hidden');
+                return;
+            }
+            noApplicantsMsg.classList.add('hidden');
+
+            rankedApplicants.forEach((applicant, index) => {
+                const rank = index + 1;
+                const rankColorClass = rank === 1 ? 'bg-green-100 text-green-700' : rank === 2 ? 'bg-yellow-100 text-yellow-700' : rank === 3 ? 'bg-orange-100 text-orange-700' : 'bg-gray-100 text-gray-700';
+                
+                const row = document.createElement('tr');
+                row.className = 'hover:bg-sky-50 transition-colors duration-150';
+                row.dataset.applicantId = applicant.id;
+                row.innerHTML = `
+                    <td class="px-4 py-3 whitespace-nowrap">
+                        <span class="inline-block text-sm font-semibold px-2 py-1 rounded-full ${rankColorClass}">#${rank}</span>
+                    </td>
+                    <td class="px-4 py-3 whitespace-nowrap">
+                        <div class="text-sm font-medium text-gray-900">${applicant.name}</div>
+                    </td>
+                    <td class="px-4 py-3 whitespace-nowrap hidden sm:table-cell">
+                        <div class="text-sm text-gray-500">${applicant.email}</div>
+                    </td>
+                    <td class="px-4 py-3 whitespace-nowrap">
+                        <div class="text-sm font-bold text-blue-600">${applicant.score.toFixed(2)}</div>
+                    </td>
+                    <td class="px-4 py-3 whitespace-nowrap text-sm font-medium">
+                        <button class="details-btn text-indigo-600 hover:text-indigo-900 mr-2 p-1" title="Details">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"></polyline></svg>
+                        </button>
+                        <button class="edit-btn text-blue-600 hover:text-blue-900 mr-2 p-1" title="Edit">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 3a2.828 2.828 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z"></path></svg>
+                        </button>
+                        <button class="delete-btn text-red-600 hover:text-red-900 p-1" title="Delete">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>
+                        </button>
+                    </td>
+                `;
+                applicantsTbody.appendChild(row);
+
+                // Expanded details row
+                const detailsRow = document.createElement('tr');
+                detailsRow.className = 'hidden bg-slate-50';
+                detailsRow.innerHTML = `<td colspan="5" class="px-4 py-3">...</td>`;
+                applicantsTbody.appendChild(detailsRow);
+            });
+        };
+
+        const renderCriteriaConfig = () => {
+            let totalWeight = rankingCriteria.reduce((sum, crit) => sum + parseFloat(crit.weight || 0), 0);
+            const weightWarningClass = Math.abs(totalWeight - 1.0) > 0.01 && rankingCriteria.length > 0 ? 'text-red-600 font-semibold' : 'text-gray-600';
+
+            const criteriaHTML = rankingCriteria.map((crit, index) => `
+                <div data-crit-id="${crit.id}" class="p-3 border border-gray-200 rounded-md bg-gray-50 grid grid-cols-1 md:grid-cols-12 gap-3 items-start">
+                    <div class="md:col-span-4">
+                        <input type="text" value="${crit.name}" data-field="name" placeholder="Criterion Name" class="crit-input w-full p-2 border border-gray-300 rounded-md text-sm">
+                    </div>
+                    <div class="md:col-span-3">
+                        <select data-field="type" class="crit-input w-full p-2 border border-gray-300 rounded-md text-sm">
+                            <option value="numeric" ${crit.type === 'numeric' ? 'selected' : ''}>Numeric Score</option>
+                            <option value="categorical_map" ${crit.type === 'categorical_map' ? 'selected' : ''}>Category Map</option>
+                            <option value="numeric_map" ${crit.type === 'numeric_map' ? 'selected' : ''}>Numeric Range Map</option>
+                        </select>
+                    </div>
+                    <div class="md:col-span-2">
+                        <input type="number" value="${crit.weight}" data-field="weight" placeholder="Weight" step="0.01" min="0" max="1" class="crit-input w-full p-2 border border-gray-300 rounded-md text-sm">
+                    </div>
+                    <div class="md:col-span-2">
+                        <input type="number" value="${crit.maxScore}" data-field="maxScore" placeholder="Max Score" step="1" min="0" class="crit-input w-full p-2 border border-gray-300 rounded-md text-sm">
+                    </div>
+                    <div class="md:col-span-1 flex justify-center items-center h-full">
+                         <button class="remove-crit-btn text-red-500 hover:text-red-700">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>
+                        </button>
+                    </div>
+                    <div class="md:col-span-12 mt-2 flex items-center">
+                        <input type="checkbox" id="isAiPowered-${crit.id}" data-field="isAiPowered" class="crit-input h-4 w-4 rounded border-gray-300 text-sky-600 focus:ring-sky-600" ${crit.isAiPowered ? 'checked' : ''}>
+                        <label for="isAiPowered-${crit.id}" class="ml-2 block text-sm text-gray-900">AI Powered</label>
+                    </div>
+                    <div class="md:col-span-12 mt-1 ai-prompt-container ${crit.isAiPowered ? '' : 'hidden'}">
+                        <textarea data-field="aiPrompt" placeholder="Enter AI prompt... e.g., 'Rate communication skills from 0-10 based on the cover letter.'" class="crit-input mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-sky-500 focus:ring-sky-500 sm:text-sm">${crit.aiPrompt || ''}</textarea>
+                    </div>
+                </div>
+            `).join('');
+
+            configPanel.innerHTML = `
+                <div class="space-y-6">
+                    <div class="flex justify-between items-center">
+                        <h3 class="text-lg font-medium text-gray-800">Define Ranking Criteria & Weights</h3>
+                        <button id="add-crit-btn" class="flex items-center bg-green-500 hover:bg-green-600 text-white font-semibold py-2 px-3 rounded-lg shadow text-sm">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="mr-1"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="8" x2="12" y2="16"></line><line x1="8" y1="12" x2="16" y2="12"></line></svg> Add
+                        </button>
+                    </div>
+                    <div id="criteria-list" class="space-y-4">${criteriaHTML}</div>
+                    <div class="mt-4 flex justify-between items-center">
+                        <p class="text-sm ${weightWarningClass}">Total Weight: ${totalWeight.toFixed(2)} (Should be 1.00)</p>
+                        <button id="save-criteria-btn" class="flex items-center bg-blue-500 hover:bg-blue-600 text-white font-semibold py-2 px-4 rounded-lg shadow-md text-sm">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="mr-2"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"></path><polyline points="17 21 17 13H7v8"></polyline><polyline points="7 3 7 8H15"></polyline></svg> Save Criteria
+                        </button>
+                    </div>
+                </div>
+            `;
+        };
+        
+        const renderApplicantForm = () => {
+            const isEditing = !!editingApplicant;
+            const data = isEditing ? editingApplicant : { name: '', email: '', notes: '' };
+            
+            const formFieldsHTML = rankingCriteria.map(crit => {
+                const value = data[crit.id] || (crit.id === 'educationLevel' ? educationLevels[0] : 0);
+                if (crit.id === 'educationLevel') {
+                    return `
+                        <div>
+                            <label for="${crit.id}" class="block text-sm font-medium text-gray-700">${crit.name}</label>
+                            <select name="${crit.id}" id="${crit.id}" class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm">
+                                ${educationLevels.map(level => `<option value="${level}" ${value === level ? 'selected' : ''}>${level}</option>`).join('')}
+                            </select>
+                        </div>
+                    `;
+                }
+                if (crit.type.includes('numeric')) {
+                    const maxVal = crit.type === 'numeric' ? crit.maxScore : 50;
+                    const stepVal = crit.type === 'numeric_map' ? 0.5 : 1;
+                    return `
+                        <div>
+                            <label for="${crit.id}" class="block text-sm font-medium text-gray-700">${crit.name}</label>
+                            <input type="number" name="${crit.id}" id="${crit.id}" value="${value}" min="0" max="${maxVal}" step="${stepVal}" class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm">
+                        </div>
+                    `;
+                }
+                return '';
+            }).join('');
+
+            applicantFormContainer.innerHTML = `
+                <div class="flex justify-between items-center mb-6">
+                    <h3 class="text-2xl font-semibold text-gray-700">${isEditing ? 'Edit Applicant' : 'Add New Applicant'}</h3>
+                    <button id="close-form-btn" class="text-gray-500 hover:text-gray-700">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><line x1="15" y1="9" x2="9" y2="15"></line><line x1="9" y1="9" x2="15" y2="15"></line></svg>
+                    </button>
+                </div>
+                
+                <div class="mb-6 p-4 border border-dashed border-sky-400 rounded-lg bg-sky-50">
+                    <div id="file-drop-zone" class="relative block w-full border-2 border-dashed border-gray-300 rounded-lg p-6 text-center cursor-pointer hover:border-sky-500 transition-colors">
+                        <input type="file" id="file-input" class="absolute inset-0 w-full h-full opacity-0 cursor-pointer" accept=".pdf,.docx">
+                        <div id="drop-zone-text">
+                            <svg class="mx-auto h-12 w-12 text-gray-400" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round" d="M12 16.5V9.75m0 0l-3.75 3.75M12 9.75l3.75 3.75M3 17.25V6.75A2.25 2.25 0 015.25 4.5h13.5A2.25 2.25 0 0121 6.75v10.5A2.25 2.25 0 0118.75 19.5H5.25A2.25 2.25 0 013 17.25z" />
+                            </svg>
+                            <p class="mt-2 text-sm text-gray-600">
+                                <span class="font-semibold text-sky-600">Click to upload</span> or drag and drop
+                            </p>
+                            <p class="text-xs text-gray-500">PDF or DOCX files</p>
+                        </div>
+                        <div id="file-display" class="hidden mt-2 text-sm text-gray-700 items-center justify-center">
+                            <!-- File name will be shown here -->
+                        </div>
+                    </div>
+                    <button id="ai-autofill-btn" type="button" class="mt-4 w-full flex items-center justify-center px-4 py-2 text-sm font-medium text-white bg-sky-600 hover:bg-sky-700 border border-transparent rounded-md shadow-sm disabled:bg-gray-400 disabled:cursor-not-allowed" disabled>
+                        <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="mr-2"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"></polygon></svg>
+                        Autofill with AI
+                    </button>
+                    <p id="ai-error" class="mt-2 text-xs text-red-600"></p>
+                    <div id="api-key-input-container" class="hidden mt-3 p-3 border border-amber-400 bg-amber-50 rounded-md">
+                        <label for="apiKeyInput" class="block text-xs font-medium text-amber-700">Enter your Gemini API Key:</label>
+                        <div class="flex items-center mt-1">
+                            <input type="password" id="apiKeyInput" placeholder="Your API key is stored locally" class="flex-grow px-2 py-1 border border-amber-300 rounded-l-md shadow-sm sm:text-xs">
+                            <button id="save-api-key-btn" class="px-3 py-1 bg-amber-500 hover:bg-amber-600 text-white text-xs font-medium rounded-r-md border border-amber-500">Save</button>
+                        </div>
+                    </div>
+                </div>
+
+                <form id="applicant-form" class="space-y-4">
+                    <div>
+                        <label for="name" class="block text-sm font-medium text-gray-700">Full Name</label>
+                        <input type="text" name="name" id="name" value="${data.name}" required class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm">
+                    </div>
+                    <div>
+                        <label for="email" class="block text-sm font-medium text-gray-700">Email</label>
+                        <input type="email" name="email" id="email" value="${data.email}" required class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm">
+                    </div>
+                    ${formFieldsHTML}
+                    <div>
+                        <label for="notes" class="block text-sm font-medium text-gray-700">Notes/Summary</label>
+                        <textarea name="notes" id="notes" rows="3" class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm">${data.notes || ''}</textarea>
+                    </div>
+                    <div class="flex justify-end space-x-3 pt-2">
+                        <button type="button" id="cancel-form-btn" class="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 hover:bg-gray-200 border border-gray-300 rounded-md shadow-sm">Cancel</button>
+                        <button type="submit" class="px-4 py-2 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 border border-transparent rounded-md shadow-sm">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="inline mr-1"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"></path><polyline points="17 21 17 13H7v8"></polyline><polyline points="7 3 7 8H15"></polyline></svg>
+                            ${isEditing ? 'Update' : 'Save'} Applicant
+                        </button>
+                    </div>
+                </form>
+            `;
+            applicantFormModal.classList.remove('hidden');
+            setTimeout(() => applicantFormModal.classList.add('modal-enter-active'), 10);
+            
+            // Add event listeners for the new file drop zone
+            setupFileDropZone();
+        };
+        
+        // --- EVENT HANDLERS ---
+        const handleSaveApplicant = async (formData) => {
+            const applicantsPath = `artifacts/${appId}/public/data/applicants`;
+            loadingOverlay.classList.remove('hidden');
+            try {
+                if (editingApplicant) {
+                    const docRef = doc(db, applicantsPath, editingApplicant.id);
+                    await setDoc(docRef, formData, { merge: true });
+                } else {
+                    await addDoc(collection(db, applicantsPath), formData);
+                }
+                closeApplicantForm();
+            } catch (e) {
+                console.error("Error saving applicant:", e);
+                showError("Failed to save applicant.");
+            } finally {
+                loadingOverlay.classList.add('hidden');
+            }
+        };
+
+        const handleDeleteApplicant = async (applicantId) => {
+            if (!confirm(`Are you sure you want to delete this applicant?`)) return;
+            const applicantsPath = `artifacts/${appId}/public/data/applicants`;
+            loadingOverlay.classList.remove('hidden');
+            try {
+                await deleteDoc(doc(db, applicantsPath, applicantId));
+            } catch (e) {
+                console.error("Error deleting applicant:", e);
+                showError("Failed to delete applicant.");
+            } finally {
+                loadingOverlay.classList.add('hidden');
+            }
+        };
+        
+        const handleSaveCriteria = async () => {
+            const criteriaPath = `artifacts/${appId}/public/data/criteria`;
+            loadingOverlay.classList.remove('hidden');
+            try {
+                const batch = writeBatch(db);
+                rankingCriteria.forEach(crit => {
+                    const docRef = doc(db, criteriaPath, crit.id);
+                    batch.set(docRef, crit);
+                });
+                await batch.commit();
+                alert("Criteria saved successfully!");
+            } catch (e) {
+                console.error("Error updating criteria:", e);
+                showError("Failed to update criteria.");
+            } finally {
+                loadingOverlay.classList.add('hidden');
+            }
+        };
+        
+        const handleAiAutofill = async () => {
+            const apiKey = document.getElementById('apiKeyInput').value;
+            const aiErrorEl = document.getElementById('ai-error');
+            const apiKeyContainer = document.getElementById('api-key-input-container');
+
+            if (!extractedFileText.trim()) {
+                aiErrorEl.textContent = "Please upload and parse a file first.";
+                return;
+            }
+            if (!apiKey) {
+                apiKeyContainer.classList.remove('hidden');
+                aiErrorEl.textContent = "A Gemini API Key is required for this feature.";
+                return;
+            }
+            
+            const autofillBtn = document.getElementById('ai-autofill-btn');
+            autofillBtn.disabled = true;
+            autofillBtn.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="animate-spin mr-2"><path d="M21 12a9 9 0 1 1-6.219-8.56"></path></svg> Processing...`;
+            aiErrorEl.textContent = '';
+            
+            const aiCriteria = rankingCriteria.filter(c => c.isAiPowered);
+            const dynamicPrompts = aiCriteria.map(c => `"${c.id}": "A number from 0-${c.maxScore} based on this instruction: ${c.aiPrompt}"`).join(',\n');
+            
+            const prompt = `You are an expert HR assistant. Based on the following resume text, extract the candidate's information. Format the output as a JSON object.
+                Resume Text: --- ${extractedFileText} ---
+                Desired JSON Output Structure: { 
+                    "name": "Candidate's full name", 
+                    "email": "Candidate's email address", 
+                    "yearsExperience": "Extract total years of professional experience as a number",
+                    "educationLevel": "Highest education level from this list: ${educationLevels.join(', ')}",
+                    "notes": "A brief 2-3 sentence summary of key qualifications.",
+                    ${dynamicPrompts}
+                }`;
+            
+            const schemaProperties = {
+                "name": { "type": "STRING" },
+                "email": { "type": "STRING" },
+                "yearsExperience": { "type": "NUMBER" },
+                "educationLevel": { "type": "STRING", "enum": educationLevels },
+                "notes": { "type": "STRING" }
+            };
+            aiCriteria.forEach(c => {
+                schemaProperties[c.id] = { "type": "NUMBER" };
+            });
+
+            const generationConfig = {
+                responseMimeType: "application/json",
+                responseSchema: {
+                    type: "OBJECT",
+                    properties: schemaProperties,
+                    required: ["name", "email", "notes", "yearsExperience", "educationLevel"]
+                }
+            };
+
+            try {
+                const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`;
+                const payload = { contents: [{ role: "user", parts: [{ text: prompt }] }], generationConfig };
+                const response = await fetch(apiUrl, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+
+                if (!response.ok) {
+                    const errorData = await response.json();
+                    throw new Error(errorData?.error?.message || `API request failed with status ${response.status}`);
+                }
+                
+                const result = await response.json();
+                const aiJsonText = result.candidates?.[0]?.content?.parts?.[0]?.text;
+                if (!aiJsonText) throw new Error("AI returned an unexpected data structure.");
+
+                const extractedData = JSON.parse(aiJsonText);
+
+                // Populate standard fields
+                document.getElementById('name').value = extractedData.name || '';
+                document.getElementById('email').value = extractedData.email || '';
+                document.getElementById('notes').value = extractedData.notes || '';
+                document.getElementById('yearsExperience').value = extractedData.yearsExperience || 0;
+                if (educationLevels.includes(extractedData.educationLevel)) {
+                    document.getElementById('educationLevel').value = extractedData.educationLevel;
+                }
+                
+                // Populate AI-powered fields
+                for (const key in extractedData) {
+                    const inputEl = document.getElementById(key);
+                    if (inputEl && rankingCriteria.some(c => c.id === key && c.isAiPowered)) {
+                        inputEl.value = extractedData[key];
+                    }
+                }
+
+            } catch (error) {
+                console.error("Error during AI autofill:", error);
+                aiErrorEl.textContent = `Failed to process with AI: ${error.message}.`;
+                apiKeyContainer.classList.remove('hidden');
+            } finally {
+                autofillBtn.disabled = false;
+                autofillBtn.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="mr-2"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"></polygon></svg> Autofill with AI`;
+            }
+        };
+
+        const openApplicantForm = (applicantToEdit = null) => {
+            editingApplicant = applicantToEdit;
+            extractedFileText = ''; // Reset extracted text when opening form
+            renderApplicantForm();
+        };
+
+        const closeApplicantForm = () => {
+            applicantFormModal.classList.remove('modal-enter-active');
+            applicantFormModal.classList.add('hidden');
+            editingApplicant = null;
+        };
+        
+        const setupFileDropZone = () => {
+            const dropZone = document.getElementById('file-drop-zone');
+            const fileInput = document.getElementById('file-input');
+            const dropZoneText = document.getElementById('drop-zone-text');
+            const fileDisplay = document.getElementById('file-display');
+            const autofillBtn = document.getElementById('ai-autofill-btn');
+
+            const highlight = () => dropZone.classList.add('drop-zone-highlight');
+            const unhighlight = () => dropZone.classList.remove('drop-zone-highlight');
+
+            ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
+                dropZone.addEventListener(eventName, (e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                }, false);
+            });
+
+            ['dragenter', 'dragover'].forEach(eventName => {
+                dropZone.addEventListener(eventName, highlight, false);
+            });
+
+            ['dragleave', 'drop'].forEach(eventName => {
+                dropZone.addEventListener(eventName, unhighlight, false);
+            });
+
+            dropZone.addEventListener('drop', (e) => {
+                const dt = e.dataTransfer;
+                const files = dt.files;
+                handleFile(files[0]);
+            });
+
+            fileInput.addEventListener('change', (e) => {
+                handleFile(e.target.files[0]);
+            });
+
+            const handleFile = (file) => {
+                if (!file) return;
+                
+                autofillBtn.disabled = true;
+                dropZoneText.classList.add('hidden');
+                fileDisplay.classList.remove('hidden');
+                fileDisplay.innerHTML = `
+                    <svg class="animate-spin h-5 w-5 text-gray-500 mr-2" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
+                    <span>Parsing: ${file.name}</span>`;
+
+                const reader = new FileReader();
+                reader.onload = async (e) => {
+                    try {
+                        if (file.type === 'application/pdf') {
+                            if (typeof window.pdfjsLib === 'undefined') {
+                                throw new Error("PDF parsing library (pdf.js) failed to load. Please refresh the page.");
+                            }
+                            window.pdfjsLib.GlobalWorkerOptions.workerSrc = `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js`;
+                            const pdf = await window.pdfjsLib.getDocument({ data: e.target.result }).promise;
+                            let text = '';
+                            for (let i = 1; i <= pdf.numPages; i++) {
+                                const page = await pdf.getPage(i);
+                                const content = await page.getTextContent();
+                                text += content.items.map(item => item.str).join(' ');
+                            }
+                            extractedFileText = text;
+                        } else if (file.name.endsWith('.docx')) {
+                            if (typeof window.mammoth === 'undefined') {
+                                throw new Error("DOCX parsing library (mammoth.js) failed to load. Please refresh the page.");
+                            }
+                            const result = await window.mammoth.extractRawText({ arrayBuffer: e.target.result });
+                            extractedFileText = result.value;
+                        } else {
+                            throw new Error('Unsupported file type. Please use PDF or DOCX.');
+                        }
+                        
+                        fileDisplay.innerHTML = `
+                            <svg class="h-5 w-5 text-green-500 mr-2" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd" /></svg>
+                            <span>Ready: ${file.name}</span>`;
+                        autofillBtn.disabled = false;
+
+                    } catch (err) {
+                        console.error("File parsing error:", err);
+                        showError(err.message);
+                        extractedFileText = '';
+                        dropZoneText.classList.remove('hidden');
+                        fileDisplay.classList.add('hidden');
+                    }
+                };
+                reader.readAsArrayBuffer(file);
+            };
+        };
+
+        // --- EVENT LISTENERS INITIALIZATION ---
+        addApplicantBtn.addEventListener('click', () => openApplicantForm());
+        searchInput.addEventListener('input', renderApplicants);
+        
+        toggleConfigBtn.addEventListener('click', () => {
+            const isOpen = !configPanel.classList.contains('hidden');
+            configPanel.classList.toggle('hidden');
+            configChevron.innerHTML = isOpen 
+                ? `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"></polyline></svg>` 
+                : `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="18 15 12 9 6 15"></polyline></svg>`;
+        });
+
+        // Event delegation for dynamically created elements
+        document.body.addEventListener('click', (e) => {
+            // Applicant table buttons
+            if (e.target.closest('.edit-btn')) {
+                const applicantId = e.target.closest('tr').dataset.applicantId;
+                const applicant = applicants.find(a => a.id === applicantId);
+                openApplicantForm(applicant);
+            }
+            if (e.target.closest('.delete-btn')) {
+                const applicantId = e.target.closest('tr').dataset.applicantId;
+                handleDeleteApplicant(applicantId);
+            }
+            if (e.target.closest('.details-btn')) {
+                const row = e.target.closest('tr');
+                const detailsRow = row.nextElementSibling;
+                const applicantId = row.dataset.applicantId;
+                const applicant = applicants.find(a => a.id === applicantId);
+                
+                if (detailsRow.classList.contains('hidden')) {
+                    const detailsHTML = `
+                        <div class="text-sm text-gray-700 space-y-2">
+                            <p><strong>Notes:</strong> ${applicant.notes || 'N/A'}</p>
+                            <div class="mt-2 pt-2 border-t">
+                                <h4 class="font-semibold mb-1">Score Inputs:</h4>
+                                <ul class="list-disc list-inside pl-2 space-y-0.5 text-xs">
+                                    ${rankingCriteria.map(crit => `<li>${crit.name}: ${applicant[crit.id] || 'N/A'}</li>`).join('')}
+                                </ul>
+                            </div>
+                        </div>
+                    `;
+                    detailsRow.querySelector('td').innerHTML = detailsHTML;
+                    detailsRow.classList.remove('hidden');
+                    e.target.closest('.details-btn').innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="18 15 12 9 6 15"></polyline></svg>`;
+                } else {
+                    detailsRow.classList.add('hidden');
+                    e.target.closest('.details-btn').innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"></polyline></svg>`;
+                }
+            }
+
+            // Applicant form buttons
+            if (e.target.id === 'close-form-btn' || e.target.id === 'cancel-form-btn') {
+                closeApplicantForm();
+            }
+            if (e.target.id === 'ai-autofill-btn') {
+                handleAiAutofill();
+            }
+            if (e.target.id === 'save-api-key-btn') {
+                document.getElementById('api-key-input-container').classList.add('hidden');
+            }
+
+            // Criteria config buttons
+            if (e.target.id === 'save-criteria-btn') {
+                handleSaveCriteria();
+            }
+            if (e.target.id === 'add-crit-btn') {
+                rankingCriteria.push({ id: generateId(), name: 'New Criterion', weight: 0, type: 'numeric', maxScore: 10, isAiPowered: false, aiPrompt: '' });
+                renderCriteriaConfig();
+            }
+            if (e.target.closest('.remove-crit-btn')) {
+                const critId = e.target.closest('[data-crit-id]').dataset.critId;
+                rankingCriteria = rankingCriteria.filter(c => c.id !== critId);
+                renderCriteriaConfig();
+            }
+        });
+
+        // Handle form submission
+        document.body.addEventListener('submit', (e) => {
+            if (e.target.id === 'applicant-form') {
+                e.preventDefault();
+                const form = e.target;
+                const formData = new FormData(form);
+                const data = {};
+                for (let [key, value] of formData.entries()) {
+                    // Convert numeric strings to numbers
+                    const inputEl = form.querySelector(`[name="${key}"]`);
+                    const isNumeric = inputEl && inputEl.type === 'number';
+                    data[key] = isNumeric ? parseFloat(value) : value;
+                }
+                handleSaveApplicant(data);
+            }
+        });
+
+        // Handle criteria input changes
+        configPanel.addEventListener('input', (e) => {
+            if (e.target.classList.contains('crit-input')) {
+                const critEl = e.target.closest('[data-crit-id]');
+                const critId = critEl.dataset.critId;
+                const field = e.target.dataset.field;
+                const critIndex = rankingCriteria.findIndex(c => c.id === critId);
+                if (critIndex === -1) return;
+
+                if (e.target.type === 'checkbox') {
+                    rankingCriteria[critIndex][field] = e.target.checked;
+                    critEl.querySelector('.ai-prompt-container').classList.toggle('hidden', !e.target.checked);
+                } else {
+                     const value = e.target.type === 'number' ? parseFloat(e.target.value) : e.target.value;
+                     rankingCriteria[critIndex][field] = value;
+                }
+            }
+        });
+
+        // --- FIREBASE INITIALIZATION ---
+        const initializeAppAndData = () => {
+            try {
+                const firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : null;
+                if (!firebaseConfig) {
+                    showError("Firebase configuration is missing.");
+                    return;
+                }
+                const app = initializeApp(firebaseConfig);
+                db = getFirestore(app);
+                auth = getAuth(app);
+
+                onAuthStateChanged(auth, async (user) => {
+                    if (user) {
+                        userId = user.uid;
+                    } else {
+                        try {
+                            const token = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : null;
+                            if (token) {
+                                await signInWithCustomToken(auth, token);
+                            } else {
+                                await signInAnonymously(auth);
+                            }
+                        } catch (authError) {
+                            console.error("Authentication Error:", authError);
+                            showError("Failed to authenticate. Please refresh.");
+                        }
+                    }
+                    if (userId) {
+                        userIdDisplay.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="mr-2"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg> <span class="mr-1 font-normal">User ID:</span> ${userId}`;
+                        userIdDisplay.classList.remove('hidden');
+                        attachFirestoreListeners();
+                    }
+                });
+            } catch (e) {
+                console.error("Firebase Init Error:", e);
+                showError("Failed to initialize the application.");
+            }
+        };
+
+        const attachFirestoreListeners = () => {
+            if (unsubscribeApplicants) unsubscribeApplicants();
+            if (unsubscribeCriteria) unsubscribeCriteria();
+
+            const applicantsPath = `artifacts/${appId}/public/data/applicants`;
+            const criteriaPath = `artifacts/${appId}/public/data/criteria`;
+
+            unsubscribeApplicants = onSnapshot(query(collection(db, applicantsPath)), (snapshot) => {
+                applicants = snapshot.docs.map(doc => ({ ...doc.data(), id: doc.id }));
+                renderApplicants();
+                loadingOverlay.classList.add('hidden');
+            }, (err) => {
+                console.error("Error fetching applicants:", err);
+                showError("Could not load applicant data.");
+            });
+
+            unsubscribeCriteria = onSnapshot(query(collection(db, criteriaPath)), async (snapshot) => {
+                let criteriaList = snapshot.docs.map(doc => ({ ...doc.data(), id: doc.id }));
+                if (criteriaList.length === 0) {
+                    console.log("No criteria found. Seeding with initial data...");
+                    const batch = writeBatch(db);
+                    initialCriteria.forEach(crit => {
+                        const docRef = doc(db, criteriaPath, crit.id);
+                        batch.set(docRef, crit);
+                    });
+                    await batch.commit();
+                    // The listener will fire again with the new data, so no need to set state here
+                } else {
+                    rankingCriteria = criteriaList;
+                    renderCriteriaConfig();
+                    renderApplicants(); // Re-render applicants in case criteria changed scores
+                }
+            }, (err) => {
+                console.error("Error fetching criteria:", err);
+                showError("Could not load ranking criteria.");
+            });
+        };
+
+        // --- START THE APP ---
+        const startApp = (startTime = Date.now()) => {
+            const TIMEOUT = 5000; // 5 seconds
+            if (typeof window.pdfjsLib !== 'undefined' && typeof window.mammoth !== 'undefined') {
+                initializeAppAndData();
+            } else if (Date.now() - startTime > TIMEOUT) {
+                showError("Failed to load external parsing libraries. Please refresh the page.");
+            } else {
+                setTimeout(() => startApp(startTime), 100);
+            }
+        };
+        
+        window.onload = startApp;
+
+    </script>
+</body>
+</html>
