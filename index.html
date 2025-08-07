@@ -1,85 +1,1036 @@
-const handleAiAutofill = async () => {
-            const apiKey = document.getElementById('apiKeyInput').value;
-            const aiErrorEl = document.getElementById('ai-error');
-            const apiKeyContainer = document.getElementById('api-key-input-container');
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Applicant Ranking System</title>
+    
+    <!-- Tailwind CSS for styling -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <!-- Google Fonts for a nicer look -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 
-            if (!extractedFileText.trim()) {
-                aiErrorEl.textContent = "Please upload and parse a file first."; return;
-            }
-            if (!apiKey) {
-                apiKeyContainer.classList.remove('hidden');
-                aiErrorEl.textContent = "A Gemini API Key is required for this feature."; return;
-            }
-            
-            const autofillBtn = document.getElementById('ai-autofill-btn');
-            autofillBtn.disabled = true;
-            autofillBtn.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="animate-spin mr-2"><path d="M21 12a9 9 0 1 1-6.219-8.56"></path></svg> Processing...`;
-            aiErrorEl.textContent = '';
-            
-            const aiCriteria = rankingCriteria.filter(c => c.isAiPowered);
-            const schemaProperties = {
-                "name": { "type": "STRING", "description": "The full name of the candidate." },
-                "email": { "type": "STRING", "description": "The email address of the candidate." },
-                "notes": { "type": "STRING", "description": "A brief 2-3 sentence summary of the candidate's key qualifications from the resume." }
-            };
-            const requiredFields = ["name", "email", "notes"];
+    <!-- PDF and DOCX parsing libraries -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/mammoth/1.6.0/mammoth.browser.min.js"></script>
 
-            const dynamicPrompts = aiCriteria
-                .map(c => {
-                    let instruction = '';
-                    let propertyDefined = false;
+    <style>
+        /* Use the Inter font family */
+        body {
+            font-family: 'Inter', sans-serif;
+        }
+        /* Simple animation for modals */
+        .modal-enter {
+            opacity: 0;
+            transform: scale(0.95);
+        }
+        .modal-enter-active {
+            opacity: 1;
+            transform: scale(1);
+            transition: opacity 300ms, transform 300ms;
+        }
+        /* Custom scrollbar for better aesthetics */
+        .custom-scrollbar::-webkit-scrollbar {
+            width: 8px;
+        }
+        .custom-scrollbar::-webkit-scrollbar-track {
+            background: #f1f5f9;
+        }
+        .custom-scrollbar::-webkit-scrollbar-thumb {
+            background: #94a3b8;
+            border-radius: 4px;
+        }
+        .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+            background: #64748b;
+        }
+        .drop-zone-highlight {
+            border-color: #0ea5e9; /* sky-500 */
+            background-color: #f0f9ff; /* sky-50 */
+        }
+        /* Ensure tier inputs don't have spinners */
+        input[type=number].tier-input::-webkit-inner-spin-button, 
+        input[type=number].tier-input::-webkit-outer-spin-button { 
+          -webkit-appearance: none; 
+          margin: 0; 
+        }
+        input[type=number].tier-input {
+          -moz-appearance: textfield;
+        }
+    </style>
+</head>
+<body class="bg-gradient-to-br from-slate-100 to-sky-100">
 
-                    switch (c.type) {
-                        case 'numeric':
-                            schemaProperties[c.id] = { "type": "NUMBER", "description": c.aiPrompt };
-                            instruction = `A number from ${c.min || 0} to ${c.max || 10} based on this instruction: ${c.aiPrompt}`;
-                            propertyDefined = true;
-                            break;
-                        case 'yes_no':
-                            schemaProperties[c.id] = { "type": "STRING", "enum": ["Yes", "No"], "description": c.aiPrompt };
-                            instruction = `Answer 'Yes' or 'No' based on this instruction: ${c.aiPrompt}`;
-                            propertyDefined = true;
-                            break;
-                        case 'tiered':
-                            // Ensure tiers exist and are not empty before creating the schema property.
-                            if (c.tiers && c.tiers.length > 0) {
-                                const levels = c.tiers.map(t => t.level).filter(Boolean); // Filter out any null/empty strings
-                                if (levels.length > 0) {
-                                    schemaProperties[c.id] = { "type": "STRING", "enum": levels, "description": c.aiPrompt };
-                                    instruction = `Choose one of these options [${levels.join(', ')}] based on this instruction: ${c.aiPrompt}`;
-                                    propertyDefined = true;
-                                }
-                            }
-                            break;
-                    }
+    <!-- Main Application Container -->
+    <div id="app-container" class="p-4 sm:p-6 md:p-8 font-sans">
+        
+        <!-- Header -->
+        <header class="mb-8 text-center">
+            <h1 class="text-4xl font-bold text-slate-700">Applicant Ranking System</h1>
+            <p class="text-slate-500 mt-2">Efficiently compare and rank job candidates.</p>
+            <div id="user-id-display" class="mt-4 inline-flex items-center bg-blue-100 text-blue-800 text-xs font-semibold px-2.5 py-1 rounded-full hidden">
+                <!-- User ID will be inserted here by JS -->
+            </div>
+        </header>
 
-                    if (propertyDefined) {
-                        requiredFields.push(c.id);
-                        // Return the prompt part for this criterion.
-                        return `"${c.id}": "${instruction.replace(/"/g, '\\"')}"`; // Escape quotes in instruction
-                    }
-                    return null; // Return null for invalid criteria to be filtered out.
-                })
-                .filter(Boolean) // Remove null entries
-                .join(',\n');
-            
-            const prompt = `You are an expert HR assistant. Based on the following resume text, extract the candidate's information. Format the output as a JSON object.
+        <!-- Main Controls -->
+        <div class="mb-6 flex flex-col sm:flex-row justify-between items-center gap-4">
+            <button id="add-applicant-btn" class="flex items-center bg-blue-500 hover:bg-blue-600 text-white font-semibold py-2 px-4 rounded-lg shadow-md transition-transform transform hover:scale-105">
+                <!-- PlusCircle Icon -->
+                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="mr-2"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="8" x2="12" y2="16"></line><line x1="8" y1="12" x2="16" y2="12"></line></svg>
+                Add New Applicant
+            </button>
+            <input type="text" id="search-input" placeholder="Search applicants by name..." class="p-2 border border-gray-300 rounded-lg shadow-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent w-full sm:w-auto">
+        </div>
 
-Resume Text: ---
-${extractedFileText}
----
+        <!-- Configuration Panel Section -->
+        <div class="mb-6 bg-white shadow-lg rounded-lg overflow-hidden">
+            <button id="toggle-config-btn" class="w-full p-4 text-left bg-gray-100 hover:bg-gray-200 focus:outline-none flex justify-between items-center transition-colors duration-150">
+                <h2 class="text-xl font-semibold text-gray-700">Configuration Panel</h2>
+                <div id="config-chevron">
+                    <!-- ChevronDown Icon -->
+                    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"></polyline></svg>
+                </div>
+            </button>
+            <div id="config-panel" class="p-4 border-t border-gray-200 hidden">
+                <!-- Criteria configuration will be rendered here by JS -->
+            </div>
+        </div>
 
-Desired JSON Output Structure:
-{
-    "name": "Candidate's full name",
-    "email": "Candidate's email address",
-    "notes": "A brief 2-3 sentence summary of key qualifications.",
-    ${dynamicPrompts}
-}`;
-            
-            const generationConfig = {
-                responseMimeType: "application/json",
-                responseSchema: {
-                    type: "OBJECT",
-                    properties: schemaProperties,
-              _message_too_long
+        <!-- Ranked Applicants Table -->
+        <div class="bg-white shadow-xl rounded-lg overflow-hidden">
+            <div class="p-4 bg-gray-50 border-b border-gray-200">
+                <h2 class="text-2xl font-semibold text-gray-700">Ranked Applicants</h2>
+                <p id="no-applicants-msg" class="text-gray-500 mt-2 hidden">No applicants found or matching search.</p>
+            </div>
+            <div class="overflow-x-auto">
+                <table class="min-w-full divide-y divide-gray-200">
+                    <thead class="bg-gray-100">
+                        <tr>
+                            <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Rank</th>
+                            <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Name</th>
+                            <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider hidden sm:table-cell">Email</th>
+                            <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Score</th>
+                            <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody id="applicants-tbody" class="bg-white divide-y divide-gray-200">
+                        <!-- Applicant rows will be rendered here by JS -->
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- Footer -->
+        <footer class="mt-12 text-center text-sm text-slate-500">
+            <p>Applicant Ranking System &copy; <span id="footer-year"></span></p>
+        </footer>
+    </div>
+    
+    <!-- Loading Spinner Overlay -->
+    <div id="loading-overlay" class="fixed inset-0 bg-slate-100 bg-opacity-75 flex items-center justify-center z-50">
+        <svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="animate-spin text-blue-500"><path d="M21 12a9 9 0 1 1-6.219-8.56"></path></svg>
+    </div>
+
+    <!-- Custom Alert/Error Display -->
+     <div id="message-display" class="hidden fixed top-5 right-5 px-4 py-3 rounded-lg shadow-lg z-50" role="alert">
+        <div class="flex items-center">
+            <div id="message-icon" class="mr-3"></div>
+            <div>
+                <strong id="message-title" class="font-bold"></strong>
+                <span id="message-text" class="block sm:inline"></span>
+            </div>
+        </div>
+    </div>
+
+    <!-- Applicant Form Modal -->
+    <div id="applicant-form-modal" class="hidden fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-40 modal-enter">
+        <div id="applicant-form-container" class="bg-white p-6 rounded-lg shadow-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto custom-scrollbar">
+            <!-- Form content will be rendered here by JS -->
+        </div>
+    </div>
+
+    <!-- Confirmation Modal -->
+    <div id="confirm-modal" class="hidden fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50 modal-enter">
+        <div class="bg-white p-6 rounded-lg shadow-2xl w-full max-w-sm">
+            <h3 id="confirm-title" class="text-lg font-medium text-gray-900">Are you sure?</h3>
+            <p id="confirm-text" class="mt-2 text-sm text-gray-500">This action cannot be undone.</p>
+            <div class="mt-4 flex justify-end space-x-2">
+                <button id="confirm-cancel-btn" class="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 hover:bg-gray-200 border border-gray-300 rounded-md">Cancel</button>
+                <button id="confirm-ok-btn" class="px-4 py-2 text-sm font-medium text-white bg-red-600 hover:bg-red-700 border border-transparent rounded-md">Delete</button>
+            </div>
+        </div>
+    </div>
+
+
+    <!-- Firebase SDKs -->
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+        import { getAuth, signInAnonymously, onAuthStateChanged, signInWithCustomToken } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { getFirestore, collection, doc, onSnapshot, setDoc, deleteDoc, writeBatch, query } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+
+        // --- GLOBAL STATE AND CONSTANTS ---
+        let db, auth;
+        let userId;
+        let applicants = [];
+        let rankingCriteria = [];
+        let editingApplicant = null; // Holds the applicant object being edited
+        let unsubscribeApplicants, unsubscribeCriteria; // To detach listeners
+        let extractedFileText = ''; // To hold text from parsed files
+        let confirmCallback = null; // To handle confirmation modal response
+
+        const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
+        const initialCriteria = [
+            { id: 'techSkills', name: 'Technical Skills', weight: 0.30, type: 'numeric', min: 0, max: 10, isAiPowered: true, aiPrompt: 'Based on the resume, rate the candidate\'s relevant technical skills on a scale of 0-10.' },
+            { id: 'experience', name: 'Experience Level', weight: 0.25, type: 'tiered', tiers: [{level: 'Junior', score: 2}, {level: 'Mid-Level', score: 6}, {level: 'Senior', score: 10}], isAiPowered: true, aiPrompt: "From the resume, classify the candidate's experience level as 'Junior', 'Mid-Level', or 'Senior'." },
+            { id: 'hasDegree', name: 'Has Relevant Degree', weight: 0.20, type: 'yes_no', isAiPowered: true, aiPrompt: "Does the resume indicate the candidate has a relevant degree (e.g., Computer Science, Engineering)? Answer 'Yes' or 'No'." },
+            { id: 'cultureFit', name: 'Interview', weight: 0.15, type: 'numeric', min: 0, max: 10, isAiPowered: false, aiPrompt: '' },
+            { id: 'portfolio', name: 'Portfolio Reviewed', weight: 0.10, type: 'yes_no', isAiPowered: false, aiPrompt: '' },
+        ];
+
+
+        // --- DOM ELEMENT REFERENCES ---
+        const loadingOverlay = document.getElementById('loading-overlay');
+        const messageDisplay = document.getElementById('message-display');
+        const applicantsTbody = document.getElementById('applicants-tbody');
+        const noApplicantsMsg = document.getElementById('no-applicants-msg');
+        const searchInput = document.getElementById('search-input');
+        const addApplicantBtn = document.getElementById('add-applicant-btn');
+        const applicantFormModal = document.getElementById('applicant-form-modal');
+        const applicantFormContainer = document.getElementById('applicant-form-container');
+        const configPanel = document.getElementById('config-panel');
+        const toggleConfigBtn = document.getElementById('toggle-config-btn');
+        const configChevron = document.getElementById('config-chevron');
+        const userIdDisplay = document.getElementById('user-id-display');
+        const confirmModal = document.getElementById('confirm-modal');
+        document.getElementById('footer-year').textContent = new Date().getFullYear();
+
+
+        // --- UTILITY AND HELPER FUNCTIONS ---
+        const showMessage = (title, text, type = 'error') => {
+            const messageIcon = messageDisplay.querySelector('#message-icon');
+            messageDisplay.querySelector('#message-title').textContent = title;
+            messageDisplay.querySelector('#message-text').textContent = text;
+            
+            messageDisplay.classList.remove('bg-red-100', 'border-red-400', 'text-red-700', 'bg-green-100', 'border-green-400', 'text-green-700');
+
+            if (type === 'error') {
+                messageDisplay.classList.add('bg-red-100', 'border-red-400', 'text-red-700');
+                messageIcon.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>`;
+            } else { // success
+                messageDisplay.classList.add('bg-green-100', 'border-green-400', 'text-green-700');
+                messageIcon.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>`;
+            }
+
+            messageDisplay.classList.remove('hidden');
+            loadingOverlay.classList.add('hidden'); // Ensure loading is hidden
+            setTimeout(() => messageDisplay.classList.add('hidden'), 5000);
+        };
+
+        const showConfirmModal = (title, text, onConfirm) => {
+            document.getElementById('confirm-title').textContent = title;
+            document.getElementById('confirm-text').textContent = text;
+            confirmCallback = onConfirm;
+            confirmModal.classList.remove('hidden');
+            confirmModal.classList.add('modal-enter-active');
+        };
+
+        const generateId = () => Math.random().toString(36).substr(2, 9);
+        
+        // --- CORE LOGIC ---
+        const calculateScore = (applicant) => {
+            if (rankingCriteria.length === 0) return 0;
+            let totalScore = 0;
+            let totalWeight = rankingCriteria.reduce((sum, crit) => sum + parseFloat(crit.weight || 0), 0);
+            if (totalWeight === 0) return 0;
+
+            rankingCriteria.forEach(criterion => {
+                const value = applicant[criterion.id];
+                let criterionScore = 0;
+                let maxPossibleScore = 0;
+
+                switch (criterion.type) {
+                    case 'numeric':
+                        maxPossibleScore = criterion.max || 10;
+                        criterionScore = Math.min(parseFloat(value) || 0, maxPossibleScore);
+                        break;
+                    case 'yes_no':
+                        maxPossibleScore = 10; // Standard max score for normalization
+                        criterionScore = (value === 'Yes') ? 10 : 0;
+                        break;
+                    case 'tiered':
+                        maxPossibleScore = Math.max(...criterion.tiers.map(t => t.score), 0);
+                        if (maxPossibleScore === 0) break;
+                        const matchedTier = criterion.tiers.find(t => t.level === value);
+                        criterionScore = matchedTier ? matchedTier.score : 0;
+                        break;
+                }
+                
+                if (maxPossibleScore > 0) {
+                    totalScore += (criterionScore / maxPossibleScore) * criterion.weight;
+                }
+            });
+            
+            return (totalScore / totalWeight) * 100;
+        };
+
+        // --- RENDERING FUNCTIONS ---
+        const renderApplicants = () => {
+            const searchTerm = searchInput.value.toLowerCase();
+            const rankedApplicants = applicants
+                .map(applicant => ({
+                    ...applicant,
+                    score: calculateScore(applicant),
+                }))
+                .filter(applicant => applicant.name.toLowerCase().includes(searchTerm))
+                .sort((a, b) => b.score - a.score);
+
+            applicantsTbody.innerHTML = ''; // Clear existing rows
+            noApplicantsMsg.classList.toggle('hidden', rankedApplicants.length > 0);
+
+            rankedApplicants.forEach((applicant, index) => {
+                const rank = index + 1;
+                const rankColorClass = rank === 1 ? 'bg-green-100 text-green-700' : rank === 2 ? 'bg-yellow-100 text-yellow-700' : rank === 3 ? 'bg-orange-100 text-orange-700' : 'bg-gray-100 text-gray-700';
+                
+                const row = document.createElement('tr');
+                row.className = 'hover:bg-sky-50 transition-colors duration-150';
+                row.dataset.applicantId = applicant.id;
+                row.innerHTML = `
+                    <td class="px-4 py-3 whitespace-nowrap">
+                        <span class="inline-block text-sm font-semibold px-2 py-1 rounded-full ${rankColorClass}">#${rank}</span>
+                    </td>
+                    <td class="px-4 py-3 whitespace-nowrap">
+                        <div class="text-sm font-medium text-gray-900">${applicant.name}</div>
+                    </td>
+                    <td class="px-4 py-3 whitespace-nowrap hidden sm:table-cell">
+                        <div class="text-sm text-gray-500">${applicant.email}</div>
+                    </td>
+                    <td class="px-4 py-3 whitespace-nowrap">
+                        <div class="text-sm font-bold text-blue-600">${applicant.score.toFixed(2)}</div>
+                    </td>
+                    <td class="px-4 py-3 whitespace-nowrap text-sm font-medium">
+                        <button class="details-btn text-indigo-600 hover:text-indigo-900 mr-2 p-1" title="Details">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"></polyline></svg>
+                        </button>
+                        <button class="edit-btn text-blue-600 hover:text-blue-900 mr-2 p-1" title="Edit">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 3a2.828 2.828 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z"></path></svg>
+                        </button>
+                        <button class="delete-btn text-red-600 hover:text-red-900 p-1" title="Delete">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>
+                        </button>
+                    </td>
+                `;
+                applicantsTbody.appendChild(row);
+
+                const detailsRow = document.createElement('tr');
+                detailsRow.className = 'hidden bg-slate-50';
+                detailsRow.innerHTML = `<td colspan="5" class="px-4 py-3">...</td>`;
+                applicantsTbody.appendChild(detailsRow);
+            });
+        };
+
+        const renderCriteriaConfig = () => {
+            let totalWeight = rankingCriteria.reduce((sum, crit) => sum + parseFloat(crit.weight || 0), 0);
+            const weightWarningClass = Math.abs(totalWeight - 1.0) > 0.01 && rankingCriteria.length > 0 ? 'text-red-600 font-semibold' : 'text-gray-600';
+
+            const criteriaHTML = rankingCriteria.map((crit) => {
+                let typeSpecificHTML = '';
+                if (crit.type === 'numeric') {
+                    typeSpecificHTML = `
+                        <div class="flex items-center space-x-2">
+                           <input type="number" value="${crit.min || 0}" data-field="min" placeholder="Min" class="crit-input w-full p-2 border border-gray-300 rounded-md text-sm">
+                           <span>-</span>
+                           <input type="number" value="${crit.max || 10}" data-field="max" placeholder="Max" class="crit-input w-full p-2 border border-gray-300 rounded-md text-sm">
+                        </div>`;
+                } else if (crit.type === 'tiered') {
+                    const tiersHTML = (crit.tiers || []).map((tier, i) => `
+                        <div class="flex items-center space-x-2 tier-row">
+                            <input type="text" value="${tier.level}" data-tier-index="${i}" data-tier-field="level" placeholder="Level Name" class="crit-input flex-grow p-2 border border-gray-300 rounded-md text-sm">
+                            <input type="number" value="${tier.score}" data-tier-index="${i}" data-tier-field="score" placeholder="Score" class="crit-input w-20 p-2 border border-gray-300 rounded-md text-sm tier-input">
+                            <button class="remove-tier-btn text-red-500 hover:text-red-700 p-1" data-tier-index="${i}">
+                                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+                            </button>
+                        </div>
+                    `).join('');
+                    typeSpecificHTML = `
+                        <div class="space-y-2">
+                            ${tiersHTML}
+                            <button class="add-tier-btn text-sm text-blue-600 hover:text-blue-800">+ Add Tier</button>
+                        </div>`;
+                }
+
+                return `
+                <div data-crit-id="${crit.id}" class="p-3 border border-gray-200 rounded-md bg-gray-50 space-y-3">
+                    <div class="grid grid-cols-1 md:grid-cols-12 gap-3 items-start">
+                        <div class="md:col-span-4">
+                            <label class="text-xs font-medium text-gray-500">Name</label>
+                            <input type="text" value="${crit.name}" data-field="name" placeholder="Criterion Name" class="crit-input w-full p-2 border border-gray-300 rounded-md text-sm">
+                        </div>
+                        <div class="md:col-span-3">
+                            <label class="text-xs font-medium text-gray-500">Type</label>
+                            <select data-field="type" class="crit-input w-full p-2 border border-gray-300 rounded-md text-sm">
+                                <option value="numeric" ${crit.type === 'numeric' ? 'selected' : ''}>Numeric Score</option>
+                                <option value="yes_no" ${crit.type === 'yes_no' ? 'selected' : ''}>Yes / No</option>
+                                <option value="tiered" ${crit.type === 'tiered' ? 'selected' : ''}>Tiered Levels</option>
+                            </select>
+                            <p class="mt-1 text-xs text-gray-500 h-10">
+                                ${
+                                    crit.type === 'numeric' ? "Score on a flexible number scale you define (e.g., 1-10)." :
+                                    crit.type === 'yes_no' ? "A simple 'Yes' or 'No' for binary requirements." :
+                                    crit.type === 'tiered' ? "Define custom levels of skill, each with its own score." : ''
+                                }
+                            </p>
+                        </div>
+                        <div class="md:col-span-4">
+                            <label class="text-xs font-medium text-gray-500">Weight</label>
+                            <input type="number" value="${crit.weight}" data-field="weight" placeholder="Weight" step="0.01" min="0" max="1" class="crit-input w-full p-2 border border-gray-300 rounded-md text-sm">
+                        </div>
+                        <div class="md:col-span-1 flex justify-end items-center h-full pt-5">
+                             <button class="remove-crit-btn text-red-500 hover:text-red-700">
+                                 <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>
+                             </button>
+                        </div>
+                    </div>
+                    <div class="type-specific-options pl-1">${typeSpecificHTML}</div>
+                    <div class="pt-2 border-t border-gray-200">
+                        <div class="flex items-center">
+                            <input type="checkbox" id="isAiPowered-${crit.id}" data-field="isAiPowered" class="crit-input h-4 w-4 rounded border-gray-300 text-sky-600 focus:ring-sky-600" ${crit.isAiPowered ? 'checked' : ''}>
+                            <label for="isAiPowered-${crit.id}" class="ml-2 block text-sm text-gray-900">AI Powered</label>
+                        </div>
+                        <div class="ai-prompt-container mt-2 ${crit.isAiPowered ? '' : 'hidden'}">
+                            <textarea data-field="aiPrompt" placeholder="Enter AI prompt... e.g., 'Rate communication skills based on the cover letter.'" class="crit-input mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-sky-500 focus:ring-sky-500 sm:text-sm">${crit.aiPrompt || ''}</textarea>
+                        </div>
+                    </div>
+                </div>`;
+            }).join('');
+
+            configPanel.innerHTML = `
+                <div class="space-y-6">
+                    <div class="flex justify-between items-center">
+                        <h3 class="text-lg font-medium text-gray-800">Define Ranking Criteria & Weights</h3>
+                        <button id="add-crit-btn" class="flex items-center bg-green-500 hover:bg-green-600 text-white font-semibold py-2 px-3 rounded-lg shadow text-sm">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="mr-1"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="8" x2="12" y2="16"></line><line x1="8" y1="12" x2="16" y2="12"></line></svg> Add
+                        </button>
+                    </div>
+                    <div id="criteria-list" class="space-y-4">${criteriaHTML}</div>
+                    <div class="mt-4 flex justify-between items-center">
+                        <p class="text-sm ${weightWarningClass}">Total Weight: ${totalWeight.toFixed(2)} (Should be 1.00)</p>
+                        <button id="save-criteria-btn" class="flex items-center bg-blue-500 hover:bg-blue-600 text-white font-semibold py-2 px-4 rounded-lg shadow-md text-sm">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="mr-2"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"></path><polyline points="17 21 17 13H7v8"></polyline><polyline points="7 3 7 8H15"></polyline></svg> Save Criteria
+                        </button>
+                    </div>
+                </div>
+            `;
+        };
+        
+        const renderApplicantForm = () => {
+            const isEditing = !!editingApplicant;
+            const data = isEditing ? editingApplicant : { name: '', email: '', notes: '' };
+            
+            const formFieldsHTML = rankingCriteria.map(crit => {
+                const value = data[crit.id];
+                let inputHTML = '';
+                switch(crit.type) {
+                    case 'numeric':
+                        inputHTML = `<input type="number" name="${crit.id}" id="${crit.id}" value="${value || 0}" min="${crit.min || 0}" max="${crit.max || 10}" step="1" class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm">`;
+                        break;
+                    case 'yes_no':
+                        inputHTML = `
+                            <select name="${crit.id}" id="${crit.id}" class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm">
+                                <option value="No" ${value !== 'Yes' ? 'selected' : ''}>No</option>
+                                <option value="Yes" ${value === 'Yes' ? 'selected' : ''}>Yes</option>
+                            </select>`;
+                        break;
+                    case 'tiered':
+                        const options = (crit.tiers || []).map(tier => `<option value="${tier.level}" ${value === tier.level ? 'selected' : ''}>${tier.level}</option>`).join('');
+                        inputHTML = `
+                            <select name="${crit.id}" id="${crit.id}" class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm">
+                                <option value="">Select Level...</option>
+                                ${options}
+                            </select>`;
+                        break;
+                }
+                return `<div><label for="${crit.id}" class="block text-sm font-medium text-gray-700">${crit.name}</label>${inputHTML}</div>`;
+            }).join('');
+
+            applicantFormContainer.innerHTML = `
+                <div class="flex justify-between items-center mb-6">
+                    <h3 class="text-2xl font-semibold text-gray-700">${isEditing ? 'Edit Applicant' : 'Add New Applicant'}</h3>
+                    <button id="close-form-btn" class="text-gray-500 hover:text-gray-700">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><line x1="15" y1="9" x2="9" y2="15"></line><line x1="9" y1="9" x2="15" y2="15"></line></svg>
+                    </button>
+                </div>
+                
+                <div class="mb-6 p-4 border border-dashed border-sky-400 rounded-lg bg-sky-50">
+                    <div id="file-drop-zone" class="relative block w-full border-2 border-dashed border-gray-300 rounded-lg p-6 text-center cursor-pointer hover:border-sky-500 transition-colors">
+                        <input type="file" id="file-input" class="absolute inset-0 w-full h-full opacity-0 cursor-pointer" accept=".pdf,.docx">
+                        <div id="drop-zone-text">
+                            <svg class="mx-auto h-12 w-12 text-gray-400" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round" d="M12 16.5V9.75m0 0l-3.75 3.75M12 9.75l3.75 3.75M3 17.25V6.75A2.25 2.25 0 015.25 4.5h13.5A2.25 2.25 0 0121 6.75v10.5A2.25 2.25 0 0118.75 19.5H5.25A2.25 2.25 0 013 17.25z" />
+                            </svg>
+                            <p class="mt-2 text-sm text-gray-600">
+                                <span class="font-semibold text-sky-600">Click to upload</span> or drag and drop
+                            </p>
+                            <p class="text-xs text-gray-500">PDF or DOCX files</p>
+                        </div>
+                        <div id="file-display" class="hidden mt-2 text-sm text-gray-700 items-center justify-center">
+                            <!-- File name will be shown here -->
+                        </div>
+                    </div>
+                    <button id="ai-autofill-btn" type="button" class="mt-4 w-full flex items-center justify-center px-4 py-2 text-sm font-medium text-white bg-sky-600 hover:bg-sky-700 border border-transparent rounded-md shadow-sm disabled:bg-gray-400 disabled:cursor-not-allowed" disabled>
+                        <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="mr-2"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"></polygon></svg>
+                        Autofill with AI
+                    </button>
+                    <p id="ai-error" class="mt-2 text-xs text-red-600"></p>
+                    <div id="api-key-input-container" class="hidden mt-3 p-3 border border-amber-400 bg-amber-50 rounded-md">
+                        <label for="apiKeyInput" class="block text-xs font-medium text-amber-700">Enter your Gemini API Key:</label>
+                        <div class="flex items-center mt-1">
+                            <input type="password" id="apiKeyInput" placeholder="Your API key is stored locally" class="flex-grow px-2 py-1 border border-amber-300 rounded-l-md shadow-sm sm:text-xs">
+                            <button id="save-api-key-btn" class="px-3 py-1 bg-amber-500 hover:bg-amber-600 text-white text-xs font-medium rounded-r-md border border-amber-500">Save</button>
+                        </div>
+                    </div>
+                </div>
+
+                <form id="applicant-form" class="space-y-4">
+                    <div>
+                        <label for="name" class="block text-sm font-medium text-gray-700">Full Name</label>
+                        <input type="text" name="name" id="name" value="${data.name}" required class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm">
+                    </div>
+                    <div>
+                        <label for="email" class="block text-sm font-medium text-gray-700">Email</label>
+                        <input type="email" name="email" id="email" value="${data.email}" required class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm">
+                    </div>
+                    ${formFieldsHTML}
+                    <div>
+                        <label for="notes" class="block text-sm font-medium text-gray-700">Notes/Summary</label>
+                        <textarea name="notes" id="notes" rows="3" class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm">${data.notes || ''}</textarea>
+                    </div>
+                    <div class="flex justify-end space-x-3 pt-2">
+                        <button type="button" id="cancel-form-btn" class="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 hover:bg-gray-200 border border-gray-300 rounded-md shadow-sm">Cancel</button>
+                        <button type="submit" class="px-4 py-2 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 border border-transparent rounded-md shadow-sm">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="inline mr-1"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"></path><polyline points="17 21 17 13H7v8"></polyline><polyline points="7 3 7 8H15"></polyline></svg>
+                            ${isEditing ? 'Update' : 'Save'} Applicant
+                        </button>
+                    </div>
+                </form>
+            `;
+            applicantFormModal.classList.remove('hidden');
+            setTimeout(() => applicantFormModal.classList.add('modal-enter-active'), 10);
+            
+            setupFileDropZone();
+        };
+        
+        // --- EVENT HANDLERS ---
+        const handleSaveApplicant = async (formData) => {
+            const applicantsPath = `artifacts/${appId}/public/data/applicants`;
+            loadingOverlay.classList.remove('hidden');
+            try {
+                if (editingApplicant) {
+                    const docRef = doc(db, applicantsPath, editingApplicant.id);
+                    await setDoc(docRef, formData, { merge: true });
+                } else {
+                    const docRef = doc(collection(db, applicantsPath));
+                    await setDoc(docRef, { ...formData, id: docRef.id });
+                }
+                closeApplicantForm();
+            } catch (e) {
+                console.error("Error saving applicant:", e);
+                showMessage("Error", "Failed to save applicant.");
+            } finally {
+                loadingOverlay.classList.add('hidden');
+            }
+        };
+
+        const handleDeleteApplicant = async (applicantId) => {
+            showConfirmModal('Delete Applicant', 'Are you sure you want to delete this applicant? This action cannot be undone.', async () => {
+                const applicantsPath = `artifacts/${appId}/public/data/applicants`;
+                loadingOverlay.classList.remove('hidden');
+                try {
+                    await deleteDoc(doc(db, applicantsPath, applicantId));
+                } catch (e) {
+                    console.error("Error deleting applicant:", e);
+                    showMessage("Error", "Failed to delete applicant.");
+                } finally {
+                    loadingOverlay.classList.add('hidden');
+                }
+            });
+        };
+        
+        const handleSaveCriteria = async () => {
+            const criteriaPath = `artifacts/${appId}/public/data/criteria`;
+            loadingOverlay.classList.remove('hidden');
+            try {
+                const batch = writeBatch(db);
+                rankingCriteria.forEach(crit => {
+                    const docRef = doc(db, criteriaPath, crit.id);
+                    // Sanitize tiers to ensure scores are numbers
+                    if(crit.tiers) {
+                        crit.tiers = crit.tiers.map(t => ({...t, score: parseFloat(t.score) || 0}));
+                    }
+                    batch.set(docRef, crit);
+                });
+                await batch.commit();
+                showMessage("Success!", "Criteria saved successfully!", "success");
+            } catch (e) {
+                console.error("Error updating criteria:", e);
+                showMessage("Error", "Failed to update criteria.");
+            } finally {
+                loadingOverlay.classList.add('hidden');
+            }
+        };
+        
+        const handleAiAutofill = async () => {
+            const apiKey = document.getElementById('apiKeyInput').value;
+            const aiErrorEl = document.getElementById('ai-error');
+            const apiKeyContainer = document.getElementById('api-key-input-container');
+
+            if (!extractedFileText.trim()) {
+                aiErrorEl.textContent = "Please upload and parse a file first."; return;
+            }
+            if (!apiKey) {
+                apiKeyContainer.classList.remove('hidden');
+                aiErrorEl.textContent = "A Gemini API Key is required for this feature."; return;
+            }
+            
+            const autofillBtn = document.getElementById('ai-autofill-btn');
+            autofillBtn.disabled = true;
+            autofillBtn.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="animate-spin mr-2"><path d="M21 12a9 9 0 1 1-6.219-8.56"></path></svg> Processing...`;
+            aiErrorEl.textContent = '';
+            
+            const aiCriteria = rankingCriteria.filter(c => c.isAiPowered);
+            const schemaProperties = {
+                "name": { "type": "STRING" },
+                "email": { "type": "STRING" },
+                "notes": { "type": "STRING" }
+            };
+            const requiredFields = ["name", "email", "notes"];
+
+            const dynamicPrompts = aiCriteria.map(c => {
+                let instruction = '';
+                switch(c.type) {
+                    case 'numeric':
+                        schemaProperties[c.id] = { "type": "NUMBER" };
+                        instruction = `A number from ${c.min || 0} to ${c.max || 10} based on this instruction: ${c.aiPrompt}`;
+                        break;
+                    case 'yes_no':
+                        schemaProperties[c.id] = { "type": "STRING", "enum": ["Yes", "No"] };
+                        instruction = `Answer 'Yes' or 'No' based on this instruction: ${c.aiPrompt}`;
+                        break;
+                    case 'tiered':
+                        const levels = c.tiers.map(t => t.level);
+                        schemaProperties[c.id] = { "type": "STRING", "enum": levels };
+                        instruction = `Choose one of these options [${levels.join(', ')}] based on this instruction: ${c.aiPrompt}`;
+                        break;
+                }
+                requiredFields.push(c.id);
+                return `"${c.id}": "${instruction}"`;
+            }).join(',\n');
+            
+            const prompt = `You are an expert HR assistant. Based on the following resume text, extract the candidate's information. Format the output as a JSON object.
+                Resume Text: --- ${extractedFileText} ---
+                Desired JSON Output Structure: {
+                    "name": "Candidate's full name",
+                    "email": "Candidate's email address",
+                    "notes": "A brief 2-3 sentence summary of key qualifications.",
+                    ${dynamicPrompts}
+                }`;
+            
+            const generationConfig = {
+                responseMimeType: "application/json",
+                responseSchema: {
+                    type: "OBJECT",
+                    properties: schemaProperties,
+                    required: requiredFields
+                }
+            };
+
+            try {
+                const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-05-20:generateContent?key=${apiKey}`;
+                const payload = { contents: [{ role: "user", parts: [{ text: prompt }] }], generationConfig };
+                const response = await fetch(apiUrl, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+
+                if (!response.ok) {
+                    const errorData = await response.json();
+                    throw new Error(errorData?.error?.message || `API request failed with status ${response.status}`);
+                }
+                
+                const result = await response.json();
+                const aiJsonText = result.candidates?.[0]?.content?.parts?.[0]?.text;
+                if (!aiJsonText) throw new Error("AI returned an unexpected data structure.");
+
+                const extractedData = JSON.parse(aiJsonText);
+
+                // Populate form fields
+                Object.keys(extractedData).forEach(key => {
+                    const inputEl = document.getElementById(key);
+                    if (inputEl) {
+                        inputEl.value = extractedData[key];
+                    }
+                });
+
+            } catch (error) {
+                console.error("Error during AI autofill:", error);
+                aiErrorEl.textContent = `Failed to process with AI: ${error.message}.`;
+                apiKeyContainer.classList.remove('hidden');
+            } finally {
+                autofillBtn.disabled = false;
+                autofillBtn.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="mr-2"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"></polygon></svg> Autofill with AI`;
+            }
+        };
+
+        const openApplicantForm = (applicantToEdit = null) => {
+            editingApplicant = applicantToEdit;
+            extractedFileText = ''; // Reset extracted text
+            renderApplicantForm();
+        };
+
+        const closeApplicantForm = () => {
+            applicantFormModal.classList.remove('modal-enter-active');
+            applicantFormModal.classList.add('hidden');
+            editingApplicant = null;
+        };
+        
+        const setupFileDropZone = () => {
+            const dropZone = document.getElementById('file-drop-zone');
+            if(!dropZone) return; // Already setup
+            const fileInput = document.getElementById('file-input');
+            const dropZoneText = document.getElementById('drop-zone-text');
+            const fileDisplay = document.getElementById('file-display');
+            const autofillBtn = document.getElementById('ai-autofill-btn');
+
+            const highlight = () => dropZone.classList.add('drop-zone-highlight');
+            const unhighlight = () => dropZone.classList.remove('drop-zone-highlight');
+
+            ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
+                dropZone.addEventListener(eventName, (e) => {
+                    e.preventDefault(); e.stopPropagation();
+                }, false);
+            });
+            ['dragenter', 'dragover'].forEach(eventName => dropZone.addEventListener(eventName, highlight, false));
+            ['dragleave', 'drop'].forEach(eventName => dropZone.addEventListener(eventName, unhighlight, false));
+
+            dropZone.addEventListener('drop', (e) => handleFile(e.dataTransfer.files[0]));
+            fileInput.addEventListener('change', (e) => handleFile(e.target.files[0]));
+
+            const handleFile = (file) => {
+                if (!file) return;
+                
+                autofillBtn.disabled = true;
+                dropZoneText.classList.add('hidden');
+                fileDisplay.classList.remove('hidden');
+                fileDisplay.innerHTML = `<svg class="animate-spin h-5 w-5 text-gray-500 mr-2" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg> <span>Parsing: ${file.name}</span>`;
+
+                const reader = new FileReader();
+                reader.onload = async (e) => {
+                    try {
+                        if (file.type === 'application/pdf') {
+                            if (typeof window.pdfjsLib === 'undefined') throw new Error("PDF.js failed to load.");
+                            window.pdfjsLib.GlobalWorkerOptions.workerSrc = `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js`;
+                            const pdf = await window.pdfjsLib.getDocument({ data: e.target.result }).promise;
+                            let text = '';
+                            for (let i = 1; i <= pdf.numPages; i++) {
+                                const page = await pdf.getPage(i);
+                                const content = await page.getTextContent();
+                                text += content.items.map(item => item.str).join(' ');
+                            }
+                            extractedFileText = text;
+                        } else if (file.name.endsWith('.docx')) {
+                            if (typeof window.mammoth === 'undefined') throw new Error("Mammoth.js failed to load.");
+                            const result = await window.mammoth.extractRawText({ arrayBuffer: e.target.result });
+                            extractedFileText = result.value;
+                        } else {
+                            throw new Error('Unsupported file type. Please use PDF or DOCX.');
+                        }
+                        
+                        fileDisplay.innerHTML = `<svg class="h-5 w-5 text-green-500 mr-2" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd" /></svg> <span>Ready: ${file.name}</span>`;
+                        autofillBtn.disabled = false;
+
+                    } catch (err) {
+                        console.error("File parsing error:", err);
+                        showMessage("Error", err.message);
+                        extractedFileText = '';
+                        dropZoneText.classList.remove('hidden');
+                        fileDisplay.classList.add('hidden');
+                    }
+                };
+                reader.readAsArrayBuffer(file);
+            };
+        };
+
+        // --- EVENT LISTENERS INITIALIZATION ---
+        addApplicantBtn.addEventListener('click', () => openApplicantForm());
+        searchInput.addEventListener('input', renderApplicants);
+        
+        toggleConfigBtn.addEventListener('click', () => {
+            const isOpen = !configPanel.classList.contains('hidden');
+            configPanel.classList.toggle('hidden');
+            configChevron.innerHTML = isOpen 
+                ? `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"></polyline></svg>` 
+                : `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="18 15 12 9 6 15"></polyline></svg>`;
+        });
+        
+        // Confirmation Modal Handlers
+        document.getElementById('confirm-cancel-btn').addEventListener('click', () => {
+            confirmModal.classList.add('hidden');
+            confirmModal.classList.remove('modal-enter-active');
+            confirmCallback = null;
+        });
+        document.getElementById('confirm-ok-btn').addEventListener('click', () => {
+            if (confirmCallback) {
+                confirmCallback();
+            }
+            document.getElementById('confirm-cancel-btn').click(); // Close modal
+        });
+
+        // Event delegation for dynamically created elements
+        document.body.addEventListener('click', (e) => {
+            // Applicant table buttons
+            const editBtn = e.target.closest('.edit-btn');
+            if (editBtn) {
+                const applicantId = editBtn.closest('tr').dataset.applicantId;
+                const applicant = applicants.find(a => a.id === applicantId);
+                openApplicantForm(applicant);
+                return;
+            }
+            const deleteBtn = e.target.closest('.delete-btn');
+            if (deleteBtn) {
+                const applicantId = deleteBtn.closest('tr').dataset.applicantId;
+                handleDeleteApplicant(applicantId);
+                return;
+            }
+            const detailsBtn = e.target.closest('.details-btn');
+            if (detailsBtn) {
+                const row = detailsBtn.closest('tr');
+                const detailsRow = row.nextElementSibling;
+                const applicantId = row.dataset.applicantId;
+                const applicant = applicants.find(a => a.id === applicantId);
+                
+                if (detailsRow.classList.contains('hidden')) {
+                    const detailsHTML = `
+                        <div class="text-sm text-gray-700 space-y-2">
+                            <p><strong>Notes:</strong> ${applicant.notes || 'N/A'}</p>
+                            <div class="mt-2 pt-2 border-t">
+                                <h4 class="font-semibold mb-1">Score Inputs:</h4>
+                                <ul class="list-disc list-inside pl-2 space-y-0.5 text-xs">
+                                    ${rankingCriteria.map(crit => `<li>${crit.name}: ${applicant[crit.id] || 'N/A'}</li>`).join('')}
+                                </ul>
+                            </div>
+                        </div>
+                    `;
+                    detailsRow.querySelector('td').innerHTML = detailsHTML;
+                    detailsRow.classList.remove('hidden');
+                    detailsBtn.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="18 15 12 9 6 15"></polyline></svg>`;
+                } else {
+                    detailsRow.classList.add('hidden');
+                    detailsBtn.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"></polyline></svg>`;
+                }
+                return;
+            }
+
+            // Applicant form buttons
+            if (e.target.closest('#close-form-btn') || e.target.closest('#cancel-form-btn')) {
+                closeApplicantForm(); return;
+            }
+            if (e.target.id === 'ai-autofill-btn') {
+                handleAiAutofill(); return;
+            }
+            if (e.target.id === 'save-api-key-btn') {
+                document.getElementById('api-key-input-container').classList.add('hidden'); return;
+            }
+
+            // Criteria config buttons
+            if (e.target.id === 'save-criteria-btn') {
+                handleSaveCriteria(); return;
+            }
+            if (e.target.id === 'add-crit-btn') {
+                rankingCriteria.push({ id: generateId(), name: 'New Criterion', weight: 0.1, type: 'numeric', min: 0, max: 10, isAiPowered: false, aiPrompt: '' });
+                renderCriteriaConfig(); return;
+            }
+            const removeCritBtn = e.target.closest('.remove-crit-btn');
+            if (removeCritBtn) {
+                const critId = removeCritBtn.closest('[data-crit-id]').dataset.critId;
+                rankingCriteria = rankingCriteria.filter(c => c.id !== critId);
+                renderCriteriaConfig(); return;
+            }
+            const addTierBtn = e.target.closest('.add-tier-btn');
+            if (addTierBtn) {
+                const critId = addTierBtn.closest('[data-crit-id]').dataset.critId;
+                const crit = rankingCriteria.find(c => c.id === critId);
+                if (!crit.tiers) crit.tiers = [];
+                crit.tiers.push({ level: 'New Level', score: 0 });
+                renderCriteriaConfig(); return;
+            }
+            const removeTierBtn = e.target.closest('.remove-tier-btn');
+            if (removeTierBtn) {
+                const critId = removeTierBtn.closest('[data-crit-id]').dataset.critId;
+                const crit = rankingCriteria.find(c => c.id === critId);
+                const tierIndex = parseInt(removeTierBtn.dataset.tierIndex, 10);
+                crit.tiers.splice(tierIndex, 1);
+                renderCriteriaConfig(); return;
+            }
+        });
+
+        // Handle form submission
+        document.body.addEventListener('submit', (e) => {
+            if (e.target.id === 'applicant-form') {
+                e.preventDefault();
+                const form = e.target;
+                const formData = new FormData(form);
+                const data = {};
+                for (let [key, value] of formData.entries()) {
+                    const crit = rankingCriteria.find(c => c.id === key);
+                    data[key] = (crit && crit.type === 'numeric') ? parseFloat(value) : value;
+                }
+                handleSaveApplicant(data);
+            }
+        });
+
+        // Handle criteria input changes
+        configPanel.addEventListener('input', (e) => {
+            if (e.target.classList.contains('crit-input')) {
+                const critEl = e.target.closest('[data-crit-id]');
+                const critId = critEl.dataset.critId;
+                const critIndex = rankingCriteria.findIndex(c => c.id === critId);
+                if (critIndex === -1) return;
+
+                const crit = rankingCriteria[critIndex];
+                
+                // Handle tier inputs
+                if(e.target.dataset.tierIndex) {
+                    const tierIndex = parseInt(e.target.dataset.tierIndex, 10);
+                    const tierField = e.target.dataset.tierField;
+                    crit.tiers[tierIndex][tierField] = e.target.value;
+                    return; // Done with this event
+                }
+
+                const field = e.target.dataset.field;
+                if (e.target.type === 'checkbox') {
+                    crit[field] = e.target.checked;
+                    critEl.querySelector('.ai-prompt-container').classList.toggle('hidden', !e.target.checked);
+                } else {
+                    const value = e.target.type === 'number' ? parseFloat(e.target.value) : e.target.value;
+                    crit[field] = value;
+                }
+                
+                if (field === 'type') {
+                    // When type changes, re-render to show correct options
+                    if(e.target.value === 'tiered' && !crit.tiers) {
+                        crit.tiers = [{level: 'Default', score: 5}];
+                    }
+                    renderCriteriaConfig();
+                }
+            }
+        });
+
+        // --- FIREBASE INITIALIZATION ---
+        const initializeAppAndData = () => {
+            try {
+                // Your web app's Firebase configuration
+                const firebaseConfig = {
+                    apiKey: "AIzaSyDbEHK5i4hGsPn22_nzZcZUhfeND3eD7fc",
+                    authDomain: "applicant-ranker.firebaseapp.com",
+                    projectId: "applicant-ranker",
+                    storageBucket: "applicant-ranker.appspot.com",
+                    messagingSenderId: "835014203027",
+                    appId: "1:835014203027:web:75da7394d8e5ec17c41f66",
+                    measurementId: "G-JZ8LLS47YG"
+                };
+
+
+                const app = initializeApp(firebaseConfig);
+                db = getFirestore(app);
+                auth = getAuth(app);
+
+                onAuthStateChanged(auth, async (user) => {
+                    if (!user) {
+                        try {
+                            const token = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : null;
+                            if (token) {
+                                await signInWithCustomToken(auth, token);
+                            } else {
+                                await signInAnonymously(auth);
+                            }
+                        } catch (authError) {
+                            console.error("Authentication Error:", authError);
+                            showMessage("Error", "Failed to authenticate. Please refresh.");
+                        }
+                    }
+                    
+                    if (auth.currentUser) {
+                        userId = auth.currentUser.uid;
+                        userIdDisplay.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="mr-2"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg> <span class="mr-1 font-normal">User ID:</span> ${userId}`;
+                        userIdDisplay.classList.remove('hidden');
+                        attachFirestoreListeners();
+                    }
+                });
+            } catch (e) {
+                console.error("Firebase Init Error:", e);
+                showMessage("Initialization Error", "Failed to initialize the application. Check Firebase config.");
+            }
+        };
+                
+        const attachFirestoreListeners = () => {
+            if (unsubscribeApplicants) unsubscribeApplicants();
+            if (unsubscribeCriteria) unsubscribeCriteria();
+
+            const applicantsPath = `artifacts/${appId}/public/data/applicants`;
+            const criteriaPath = `artifacts/${appId}/public/data/criteria`;
+
+            unsubscribeApplicants = onSnapshot(query(collection(db, applicantsPath)), (snapshot) => {
+                applicants = snapshot.docs.map(doc => ({ ...doc.data(), id: doc.id }));
+                renderApplicants();
+                loadingOverlay.classList.add('hidden');
+            }, (err) => {
+                console.error("Error fetching applicants:", err);
+                showMessage("Error", "Could not load applicant data.");
+            });
+
+            unsubscribeCriteria = onSnapshot(query(collection(db, criteriaPath)), async (snapshot) => {
+                let criteriaList = snapshot.docs.map(doc => ({ ...doc.data(), id: doc.id }));
+                if (criteriaList.length === 0) {
+                    console.log("No criteria found. Seeding with initial data...");
+                    const batch = writeBatch(db);
+                    initialCriteria.forEach(crit => {
+                        const docRef = doc(db, criteriaPath, crit.id);
+                        batch.set(docRef, crit);
+                    });
+                    await batch.commit();
+                    // Listener will fire again with the new data
+                } else {
+                    rankingCriteria = criteriaList;
+                    renderCriteriaConfig();
+                    renderApplicants(); // Re-render applicants in case criteria changed
+                }
+            }, (err) => {
+                console.error("Error fetching criteria:", err);
+                showMessage("Error", "Could not load ranking criteria.");
+            });
+        };
+
+        // --- START THE APP ---
+        const startApp = (startTime = Date.now()) => {
+            const TIMEOUT = 5000; // 5 seconds
+            if (typeof window.pdfjsLib !== 'undefined' && typeof window.mammoth !== 'undefined') {
+                initializeAppAndData();
+            } else if (Date.now() - startTime > TIMEOUT) {
+                showMessage("Loading Error", "Failed to load external parsing libraries. Please refresh the page.");
+            } else {
+                setTimeout(() => startApp(startTime), 100);
+            }
+        };
+        
+        window.onload = startApp;
+
+    </script>
+</body>
+</html>
+
+
+
+
