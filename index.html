@@ -931,10 +931,17 @@
         // --- FIREBASE INITIALIZATION ---
         const initializeAppAndData = () => {
             try {
-                const firebaseConfig = JSON.parse(typeof __firebase_config !== 'undefined' ? __firebase_config : '{}');
-                if (!firebaseConfig.projectId) {
-                    throw new Error("Firebase config not found.");
-                }
+                // Your web app's Firebase configuration
+                const firebaseConfig = {
+                    apiKey: "AIzaSyDbEHK5i4hGsPn22_nzZcZUhfeND3eD7fc",
+                    authDomain: "applicant-ranker.firebaseapp.com",
+                    projectId: "applicant-ranker",
+                    storageBucket: "applicant-ranker.appspot.com",
+                    messagingSenderId: "835014203027",
+                    appId: "1:835014203027:web:75da7394d8e5ec17c41f66",
+                    measurementId: "G-JZ8LLS47YG"
+                };
+
 
                 const app = initializeApp(firebaseConfig);
                 db = getFirestore(app);
