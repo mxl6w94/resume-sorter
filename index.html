@@ -747,8 +747,8 @@
             }
 
             // Applicant form buttons
-            if (e.target.id === 'close-form-btn' || e.target.id === 'cancel-form-btn') {
-                closeApplicantForm();
+            if (e.target.closest('#close-form-btn') || e.target.closest('#cancel-form-btn')) {
+             closeApplicantForm();
             }
             if (e.target.id === 'ai-autofill-btn') {
                 handleAiAutofill();
