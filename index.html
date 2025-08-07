@@ -77,17 +77,17 @@
 
         <!-- Main Controls -->
         <div class="mb-6 flex flex-col sm:flex-row justify-between items-center gap-4">
-            <button id="add-applicant-btn" class="flex items-center bg-blue-500 hover:bg-blue-600 text-white font-semibold py-2 px-4 rounded-lg shadow-md transition-transform transform hover:scale-105" title="Add a new candidate to the list">
+            <button id="add-applicant-btn" class="flex items-center bg-blue-500 hover:bg-blue-600 text-white font-semibold py-2 px-4 rounded-lg shadow-md transition-transform transform hover:scale-105">
                 <!-- PlusCircle Icon -->
                 <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="mr-2"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="8" x2="12" y2="16"></line><line x1="8" y1="12" x2="16" y2="12"></line></svg>
                 Add New Applicant
             </button>
-            <input type="text" id="search-input" placeholder="Search applicants by name..." class="p-2 border border-gray-300 rounded-lg shadow-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent w-full sm:w-auto" title="Filter the list by applicant name">
+            <input type="text" id="search-input" placeholder="Search applicants by name..." class="p-2 border border-gray-300 rounded-lg shadow-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent w-full sm:w-auto">
         </div>
 
         <!-- Configuration Panel Section -->
         <div class="mb-6 bg-white shadow-lg rounded-lg overflow-hidden">
-            <button id="toggle-config-btn" class="w-full p-4 text-left bg-gray-100 hover:bg-gray-200 focus:outline-none flex justify-between items-center transition-colors duration-150" title="Click to expand or collapse the settings panel">
+            <button id="toggle-config-btn" class="w-full p-4 text-left bg-gray-100 hover:bg-gray-200 focus:outline-none flex justify-between items-center transition-colors duration-150">
                 <h2 class="text-xl font-semibold text-gray-700">Configuration Panel</h2>
                 <div id="config-chevron">
                     <!-- ChevronDown Icon -->
@@ -311,13 +311,13 @@
                         <div class="text-sm font-bold text-blue-600">${applicant.score.toFixed(2)}</div>
                     </td>
                     <td class="px-4 py-3 whitespace-nowrap text-sm font-medium">
-                        <button class="details-btn text-indigo-600 hover:text-indigo-900 mr-2 p-1" title="View Details">
+                        <button class="details-btn text-indigo-600 hover:text-indigo-900 mr-2 p-1" title="Details">
                             <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"></polyline></svg>
                         </button>
-                        <button class="edit-btn text-blue-600 hover:text-blue-900 mr-2 p-1" title="Edit Applicant">
+                        <button class="edit-btn text-blue-600 hover:text-blue-900 mr-2 p-1" title="Edit">
                             <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 3a2.828 2.828 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z"></path></svg>
                         </button>
-                        <button class="delete-btn text-red-600 hover:text-red-900 p-1" title="Delete Applicant">
+                        <button class="delete-btn text-red-600 hover:text-red-900 p-1" title="Delete">
                             <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>
                         </button>
                     </td>
@@ -339,34 +339,25 @@
                 let typeSpecificHTML = '';
                 if (crit.type === 'numeric') {
                     typeSpecificHTML = `
-                        <div class="grid grid-cols-2 gap-x-2">
-                           <div>
-                                <label for="crit-min-${crit.id}" class="text-xs font-medium text-gray-500">Min Score</label>
-                                <input id="crit-min-${crit.id}" type="number" value="${crit.min || 0}" data-field="min" placeholder="Min" class="crit-input w-full p-2 border border-gray-300 rounded-md text-sm">
-                           </div>
-                           <div>
-                                <label for="crit-max-${crit.id}" class="text-xs font-medium text-gray-500">Max Score</label>
-                                <input id="crit-max-${crit.id}" type="number" value="${crit.max || 10}" data-field="max" placeholder="Max" class="crit-input w-full p-2 border border-gray-300 rounded-md text-sm">
-                           </div>
+                        <div class="flex items-center space-x-2">
+                           <input type="number" value="${crit.min || 0}" data-field="min" placeholder="Min" class="crit-input w-full p-2 border border-gray-300 rounded-md text-sm">
+                           <span>-</span>
+                           <input type="number" value="${crit.max || 10}" data-field="max" placeholder="Max" class="crit-input w-full p-2 border border-gray-300 rounded-md text-sm">
                         </div>`;
                 } else if (crit.type === 'tiered') {
                     const tiersHTML = (crit.tiers || []).map((tier, i) => `
                         <div class="flex items-center space-x-2 tier-row">
-                            <input type="text" value="${tier.level}" data-tier-index="${i}" data-tier-field="level" placeholder="e.g., Expert" class="crit-input flex-grow p-2 border border-gray-300 rounded-md text-sm" title="Name for this tier">
-                            <input type="number" value="${tier.score}" data-tier-index="${i}" data-tier-field="score" placeholder="Score" class="crit-input w-20 p-2 border border-gray-300 rounded-md text-sm tier-input" title="Points for this tier">
-                            <button class="remove-tier-btn text-red-500 hover:text-red-700 p-1" data-tier-index="${i}" title="Remove this tier">
+                            <input type="text" value="${tier.level}" data-tier-index="${i}" data-tier-field="level" placeholder="Level Name" class="crit-input flex-grow p-2 border border-gray-300 rounded-md text-sm">
+                            <input type="number" value="${tier.score}" data-tier-index="${i}" data-tier-field="score" placeholder="Score" class="crit-input w-20 p-2 border border-gray-300 rounded-md text-sm tier-input">
+                            <button class="remove-tier-btn text-red-500 hover:text-red-700 p-1" data-tier-index="${i}">
                                 <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
                             </button>
                         </div>
                     `).join('');
                     typeSpecificHTML = `
                         <div class="space-y-2">
-                            <div class="grid grid-cols-2 gap-x-2 mb-1">
-                                <label class="text-xs font-medium text-gray-500 pl-1">Level Name</label>
-                                <label class="text-xs font-medium text-gray-500 pl-1">Score</label>
-                            </div>
                             ${tiersHTML}
-                            <button class="add-tier-btn text-sm text-blue-600 hover:text-blue-800" title="Add a new scoring level">+ Add Tier</button>
+                            <button class="add-tier-btn text-sm text-blue-600 hover:text-blue-800">+ Add Tier</button>
                         </div>`;
                 }
 
@@ -374,12 +365,12 @@
                 <div data-crit-id="${crit.id}" class="p-3 border border-gray-200 rounded-md bg-gray-50 space-y-3">
                     <div class="grid grid-cols-1 md:grid-cols-12 gap-3 items-start">
                         <div class="md:col-span-4">
-                            <label for="crit-name-${crit.id}" class="text-xs font-medium text-gray-500">Criterion Name</label>
-                            <input id="crit-name-${crit.id}" type="text" value="${crit.name}" data-field="name" placeholder="e.g., Technical Skills" class="crit-input w-full p-2 border border-gray-300 rounded-md text-sm">
+                            <label class="text-xs font-medium text-gray-500">Name</label>
+                            <input type="text" value="${crit.name}" data-field="name" placeholder="Criterion Name" class="crit-input w-full p-2 border border-gray-300 rounded-md text-sm">
                         </div>
                         <div class="md:col-span-3">
-                            <label for="crit-type-${crit.id}" class="text-xs font-medium text-gray-500">Scoring Type</label>
-                            <select id="crit-type-${crit.id}" data-field="type" class="crit-input w-full p-2 border border-gray-300 rounded-md text-sm">
+                            <label class="text-xs font-medium text-gray-500">Type</label>
+                            <select data-field="type" class="crit-input w-full p-2 border border-gray-300 rounded-md text-sm">
                                 <option value="numeric" ${crit.type === 'numeric' ? 'selected' : ''}>Numeric Score</option>
                                 <option value="yes_no" ${crit.type === 'yes_no' ? 'selected' : ''}>Yes / No</option>
                                 <option value="tiered" ${crit.type === 'tiered' ? 'selected' : ''}>Tiered Levels</option>
@@ -393,11 +384,11 @@
                             </p>
                         </div>
                         <div class="md:col-span-4">
-                            <label for="crit-weight-${crit.id}" class="text-xs font-medium text-gray-500">Weight (Importance)</label>
-                            <input id="crit-weight-${crit.id}" type="number" value="${crit.weight}" data-field="weight" placeholder="e.g., 0.40" step="0.01" min="0" max="1" class="crit-input w-full p-2 border border-gray-300 rounded-md text-sm">
+                            <label class="text-xs font-medium text-gray-500">Weight</label>
+                            <input type="number" value="${crit.weight}" data-field="weight" placeholder="Weight" step="0.01" min="0" max="1" class="crit-input w-full p-2 border border-gray-300 rounded-md text-sm">
                         </div>
                         <div class="md:col-span-1 flex justify-end items-center h-full pt-5">
-                             <button class="remove-crit-btn text-red-500 hover:text-red-700" title="Delete this criterion">
+                             <button class="remove-crit-btn text-red-500 hover:text-red-700">
                                  <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>
                              </button>
                         </div>
@@ -405,13 +396,11 @@
                     <div class="type-specific-options pl-1">${typeSpecificHTML}</div>
                     <div class="pt-2 border-t border-gray-200">
                         <div class="flex items-center">
-                            <input type="checkbox" id="isAiPowered-${crit.id}" data-field="isAiPowered" class="crit-input h-4 w-4 rounded border-gray-300 text-sky-600 focus:ring-sky-600">
+                            <input type="checkbox" id="isAiPowered-${crit.id}" data-field="isAiPowered" class="crit-input h-4 w-4 rounded border-gray-300 text-sky-600 focus:ring-sky-600" ${crit.isAiPowered ? 'checked' : ''}>
                             <label for="isAiPowered-${crit.id}" class="ml-2 block text-sm text-gray-900">AI Powered</label>
                         </div>
-                        <p class="ml-6 text-xs text-gray-500">If checked, you can use the AI Autofill feature for this field.</p>
                         <div class="ai-prompt-container mt-2 ${crit.isAiPowered ? '' : 'hidden'}">
-                            <label for="aiPrompt-${crit.id}" class="text-sm font-medium text-gray-700">AI Prompt</label>
-                            <textarea id="aiPrompt-${crit.id}" data-field="aiPrompt" placeholder="Enter instructions for the AI... e.g., 'Rate communication skills from 0-10 based on the cover letter.'" class="crit-input mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-sky-500 focus:ring-sky-500 sm:text-sm">${crit.aiPrompt || ''}</textarea>
+                            <textarea data-field="aiPrompt" placeholder="Enter AI prompt... e.g., 'Rate communication skills based on the cover letter.'" class="crit-input mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-sky-500 focus:ring-sky-500 sm:text-sm">${crit.aiPrompt || ''}</textarea>
                         </div>
                     </div>
                 </div>`;
@@ -420,18 +409,15 @@
             configPanel.innerHTML = `
                 <div class="space-y-6">
                     <div class="flex justify-between items-center">
-                        <div>
-                            <h3 class="text-lg font-medium text-gray-800">Define Ranking Criteria & Weights</h3>
-                            <p class="text-sm text-gray-500">Add, edit, or remove the metrics used to score applicants.</p>
-                        </div>
-                        <button id="add-crit-btn" class="flex items-center bg-green-500 hover:bg-green-600 text-white font-semibold py-2 px-3 rounded-lg shadow text-sm" title="Add a new scoring criterion">
+                        <h3 class="text-lg font-medium text-gray-800">Define Ranking Criteria & Weights</h3>
+                        <button id="add-crit-btn" class="flex items-center bg-green-500 hover:bg-green-600 text-white font-semibold py-2 px-3 rounded-lg shadow text-sm">
                             <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="mr-1"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="8" x2="12" y2="16"></line><line x1="8" y1="12" x2="16" y2="12"></line></svg> Add
                         </button>
                     </div>
                     <div id="criteria-list" class="space-y-4">${criteriaHTML}</div>
                     <div class="mt-4 flex justify-between items-center">
-                        <p class="text-sm ${weightWarningClass}" title="For accurate scoring, all weights should add up to 1.00">Total Weight: ${totalWeight.toFixed(2)} (Should be 1.00)</p>
-                        <button id="save-criteria-btn" class="flex items-center bg-blue-500 hover:bg-blue-600 text-white font-semibold py-2 px-4 rounded-lg shadow-md text-sm" title="Save all changes to your criteria">
+                        <p class="text-sm ${weightWarningClass}">Total Weight: ${totalWeight.toFixed(2)} (Should be 1.00)</p>
+                        <button id="save-criteria-btn" class="flex items-center bg-blue-500 hover:bg-blue-600 text-white font-semibold py-2 px-4 rounded-lg shadow-md text-sm">
                             <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="mr-2"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"></path><polyline points="17 21 17 13H7v8"></polyline><polyline points="7 3 7 8H15"></polyline></svg> Save Criteria
                         </button>
                     </div>
@@ -472,14 +458,12 @@
             applicantFormContainer.innerHTML = `
                 <div class="flex justify-between items-center mb-6">
                     <h3 class="text-2xl font-semibold text-gray-700">${isEditing ? 'Edit Applicant' : 'Add New Applicant'}</h3>
-                    <button id="close-form-btn" class="text-gray-500 hover:text-gray-700" title="Close this form">
+                    <button id="close-form-btn" class="text-gray-500 hover:text-gray-700">
                         <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><line x1="15" y1="9" x2="9" y2="15"></line><line x1="9" y1="9" x2="15" y2="15"></line></svg>
                     </button>
                 </div>
                 
                 <div class="mb-6 p-4 border border-dashed border-sky-400 rounded-lg bg-sky-50">
-                     <h4 class="text-lg font-medium text-gray-800 mb-2">AI Autofill</h4>
-                     <p class="text-sm text-gray-600 mb-4">Upload a resume (PDF or DOCX) to let AI fill out the form for you.</p>
                     <div id="file-drop-zone" class="relative block w-full border-2 border-dashed border-gray-300 rounded-lg p-6 text-center cursor-pointer hover:border-sky-500 transition-colors">
                         <input type="file" id="file-input" class="absolute inset-0 w-full h-full opacity-0 cursor-pointer" accept=".pdf,.docx">
                         <div id="drop-zone-text">
@@ -495,7 +479,7 @@
                             <!-- File name will be shown here -->
                         </div>
                     </div>
-                    <button id="ai-autofill-btn" type="button" class="mt-4 w-full flex items-center justify-center px-4 py-2 text-sm font-medium text-white bg-sky-600 hover:bg-sky-700 border border-transparent rounded-md shadow-sm disabled:bg-gray-400 disabled:cursor-not-allowed" disabled title="Parse the resume and fill fields below">
+                    <button id="ai-autofill-btn" type="button" class="mt-4 w-full flex items-center justify-center px-4 py-2 text-sm font-medium text-white bg-sky-600 hover:bg-sky-700 border border-transparent rounded-md shadow-sm disabled:bg-gray-400 disabled:cursor-not-allowed" disabled>
                         <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="mr-2"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"></polygon></svg>
                         Autofill with AI
                     </button>
@@ -510,28 +494,19 @@
                 </div>
 
                 <form id="applicant-form" class="space-y-4">
-                    <div class="space-y-4">
-                        <h4 class="text-lg font-medium text-gray-800">Applicant Information</h4>
-                        <div>
-                            <label for="name" class="block text-sm font-medium text-gray-700">Full Name</label>
-                            <input type="text" name="name" id="name" value="${data.name}" required class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm">
-                        </div>
-                        <div>
-                            <label for="email" class="block text-sm font-medium text-gray-700">Email</label>
-                            <input type="email" name="email" id="email" value="${data.email}" required class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm">
-                        </div>
+                    <div>
+                        <label for="name" class="block text-sm font-medium text-gray-700">Full Name</label>
+                        <input type="text" name="name" id="name" value="${data.name}" required class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm">
                     </div>
-
-                    <div class="pt-4 mt-4 border-t space-y-4">
-                        <h4 class="text-lg font-medium text-gray-800">Criteria Scores</h4>
-                        ${formFieldsHTML}
+                    <div>
+                        <label for="email" class="block text-sm font-medium text-gray-700">Email</label>
+                        <input type="email" name="email" id="email" value="${data.email}" required class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm">
                     </div>
-
-                    <div class="pt-4 mt-4 border-t">
-                        <label for="notes" class="block text-sm font-medium text-gray-700">Notes / Summary</label>
-                        <textarea name="notes" id="notes" rows="3" class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm" placeholder="Add any relevant notes about the candidate here...">${data.notes || ''}</textarea>
+                    ${formFieldsHTML}
+                    <div>
+                        <label for="notes" class="block text-sm font-medium text-gray-700">Notes/Summary</label>
+                        <textarea name="notes" id="notes" rows="3" class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm">${data.notes || ''}</textarea>
                     </div>
-
                     <div class="flex justify-end space-x-3 pt-2">
                         <button type="button" id="cancel-form-btn" class="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 hover:bg-gray-200 border border-gray-300 rounded-md shadow-sm">Cancel</button>
                         <button type="submit" class="px-4 py-2 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 border border-transparent rounded-md shadow-sm">
@@ -938,12 +913,6 @@
                 if (e.target.type === 'checkbox') {
                     crit[field] = e.target.checked;
                     critEl.querySelector('.ai-prompt-container').classList.toggle('hidden', !e.target.checked);
-                    // Also update the isAiPowered property on the criterion object
-                    const aiPromptContainer = critEl.querySelector('.ai-prompt-container');
-                    const isAiPoweredCheckbox = critEl.querySelector(`#isAiPowered-${crit.id}`);
-                    crit.isAiPowered = isAiPoweredCheckbox.checked;
-                    aiPromptContainer.classList.toggle('hidden', !isAiPoweredCheckbox.checked);
-
                 } else {
                     const value = e.target.type === 'number' ? parseFloat(e.target.value) : e.target.value;
                     crit[field] = value;
@@ -973,6 +942,7 @@
                     measurementId: "G-JZ8LLS47YG"
                 };
 
+
                 const app = initializeApp(firebaseConfig);
                 db = getFirestore(app);
                 auth = getAuth(app);
@@ -980,8 +950,6 @@
                 onAuthStateChanged(auth, async (user) => {
                     if (!user) {
                         try {
-                            // This part is for compatibility with certain deployment environments.
-                            // For a standard web deployment, you might only use signInAnonymously.
                             const token = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : null;
                             if (token) {
                                 await signInWithCustomToken(auth, token);
@@ -1062,3 +1030,5 @@
     </script>
 </body>
 </html>
+
+
