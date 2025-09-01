@@ -75,32 +75,12 @@
             </div>
         </header>
 
-        <!-- BATCH UPLOAD DROP ZONE -->
-        <div id="batch-drop-zone" class="mb-6 hidden">
-            <div class="border-4 border-dashed border-gray-300 rounded-lg p-8 text-center cursor-pointer hover:border-sky-500 hover:bg-sky-50 transition-colors duration-200">
-                <svg class="mx-auto h-12 w-12 text-gray-400" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
-                    <path stroke-linecap="round" stroke-linejoin="round" d="M12 16.5V9.75m0 0l-3.75 3.75M12 9.75l3.75 3.75M3 17.25V6.75A2.25 2.25 0 015.25 4.5h13.5A2.25 2.25 0 0121 6.75v10.5A2.25 2.25 0 0118.75 19.5H5.25A2.25 2.25 0 013 17.25z" />
-                </svg>
-                <p class="mt-2 text-lg text-gray-600">
-                    <span class="font-semibold text-sky-600">Drag & Drop Multiple Resumes Here</span>
-                </p>
-                <p class="text-sm text-gray-500">PDF or DOCX files will be automatically parsed, scored, and added to the list below.</p>
-                <div id="batch-api-key-container" class="hidden mt-4 max-w-md mx-auto p-3 border border-amber-400 bg-amber-50 rounded-md">
-                    <label for="batchApiKeyInput" class="block text-xs font-medium text-amber-700">A Gemini API Key is required for batch processing:</label>
-                    <div class="flex items-center mt-1">
-                        <input type="password" id="batchApiKeyInput" placeholder="Your API key is stored locally" class="flex-grow px-2 py-1 border border-amber-300 rounded-l-md shadow-sm sm:text-xs">
-                        <button id="batch-save-api-key-btn" class="px-3 py-1 bg-amber-500 hover:bg-amber-600 text-white text-xs font-medium rounded-r-md border border-amber-500">Save & Retry</button>
-                    </div>
-                </div>
-            </div>
-        </div>
-
         <!-- Main Controls -->
         <div class="mb-6 flex flex-col sm:flex-row justify-between items-center gap-4">
             <button id="add-applicant-btn" class="flex items-center bg-blue-500 hover:bg-blue-600 text-white font-semibold py-2 px-4 rounded-lg shadow-md transition-transform transform hover:scale-105" title="Add a new candidate to the list">
                 <!-- PlusCircle Icon -->
                 <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="mr-2"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="8" x2="12" y2="16"></line><line x1="8" y1="12" x2="16" y2="12"></line></svg>
-                Add New Applicant Manually
+                Add New Applicant
             </button>
             <input type="text" id="search-input" placeholder="Search applicants by name..." class="p-2 border border-gray-300 rounded-lg shadow-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent w-full sm:w-auto" title="Filter the list by applicant name">
         </div>
@@ -150,7 +130,7 @@
     </div>
     
     <!-- Loading Spinner Overlay -->
-    <div id="loading-overlay" class="fixed inset-0 bg-slate-100 bg-opacity-75 flex flex-col items-center justify-center z-50">
+    <div id="loading-overlay" class="fixed inset-0 bg-slate-100 bg-opacity-75 flex items-center justify-center z-50">
         <svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="animate-spin text-blue-500"><path d="M21 12a9 9 0 1 1-6.219-8.56"></path></svg>
     </div>
 
@@ -207,7 +187,7 @@
             { id: 'experience', name: 'Experience Level', weight: 0.25, type: 'tiered', tiers: [{level: 'Junior', score: 2}, {level: 'Mid-Level', score: 6}, {level: 'Senior', score: 10}], isAiPowered: true, aiPrompt: "From the resume, classify the candidate's experience level as 'Junior', 'Mid-Level', or 'Senior'." },
             { id: 'hasDegree', name: 'Has Relevant Degree', weight: 0.20, type: 'yes_no', isAiPowered: true, aiPrompt: "Does the resume indicate the candidate has a relevant degree (e.g., Computer Science, Engineering)? Answer 'Yes' or 'No'." },
             { id: 'cultureFit', name: 'Interview', weight: 0.15, type: 'numeric', min: 0, max: 10, isAiPowered: false, aiPrompt: '' },
-            { id: 'portfolio', name: 'Portfolio available', weight: 0.10, type: 'yes_no', isAiPowered: false, aiPrompt: '' },
+            { id: 'portfolio', name: 'Portfolio Reviewed', weight: 0.10, type: 'yes_no', isAiPowered: false, aiPrompt: '' },
         ];
 
 
@@ -360,14 +340,14 @@
                 if (crit.type === 'numeric') {
                     typeSpecificHTML = `
                         <div class="grid grid-cols-2 gap-x-2">
-                            <div>
+                           <div>
                                 <label for="crit-min-${crit.id}" class="text-xs font-medium text-gray-500">Min Score</label>
                                 <input id="crit-min-${crit.id}" type="number" value="${crit.min || 0}" data-field="min" placeholder="Min" class="crit-input w-full p-2 border border-gray-300 rounded-md text-sm">
-                            </div>
-                            <div>
+                           </div>
+                           <div>
                                 <label for="crit-max-${crit.id}" class="text-xs font-medium text-gray-500">Max Score</label>
                                 <input id="crit-max-${crit.id}" type="number" value="${crit.max || 10}" data-field="max" placeholder="Max" class="crit-input w-full p-2 border border-gray-300 rounded-md text-sm">
-                            </div>
+                           </div>
                         </div>`;
                 } else if (crit.type === 'tiered') {
                     const tiersHTML = (crit.tiers || []).map((tier, i) => `
@@ -450,7 +430,7 @@
                     </div>
                     <div id="criteria-list" class="space-y-4">${criteriaHTML}</div>
                     <div class="mt-4 flex justify-between items-center">
-                        <p id="total-weight-display" class="text-sm ${weightWarningClass}" title="For accurate scoring, all weights should add up to 1.00">Total Weight: ${totalWeight.toFixed(2)} (Should be 1.00)</p>
+                        <p class="text-sm ${weightWarningClass}" title="For accurate scoring, all weights should add up to 1.00">Total Weight: ${totalWeight.toFixed(2)} (Should be 1.00)</p>
                         <button id="save-criteria-btn" class="flex items-center bg-blue-500 hover:bg-blue-600 text-white font-semibold py-2 px-4 rounded-lg shadow-md text-sm" title="Save all changes to your criteria">
                             <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="mr-2"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"></path><polyline points="17 21 17 13H7v8"></polyline><polyline points="7 3 7 8H15"></polyline></svg> Save Criteria
                         </button>
@@ -501,7 +481,7 @@
                      <h4 class="text-lg font-medium text-gray-800 mb-2">AI Autofill</h4>
                      <p class="text-sm text-gray-600 mb-4">Upload a resume (PDF or DOCX) to let AI fill out the form for you.</p>
                     <div id="file-drop-zone" class="relative block w-full border-2 border-dashed border-gray-300 rounded-lg p-6 text-center cursor-pointer hover:border-sky-500 transition-colors">
-                        <input type="file" id="file-input" class="absolute inset-0 w-full h-full opacity-0 cursor-pointer" accept=".pdf,.docx" multiple>
+                        <input type="file" id="file-input" class="absolute inset-0 w-full h-full opacity-0 cursor-pointer" accept=".pdf,.docx">
                         <div id="drop-zone-text">
                             <svg class="mx-auto h-12 w-12 text-gray-400" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
                                 <path stroke-linecap="round" stroke-linejoin="round" d="M12 16.5V9.75m0 0l-3.75 3.75M12 9.75l3.75 3.75M3 17.25V6.75A2.25 2.25 0 015.25 4.5h13.5A2.25 2.25 0 0121 6.75v10.5A2.25 2.25 0 0118.75 19.5H5.25A2.25 2.25 0 013 17.25z" />
@@ -509,7 +489,7 @@
                             <p class="mt-2 text-sm text-gray-600">
                                 <span class="font-semibold text-sky-600">Click to upload</span> or drag and drop
                             </p>
-                            <p class="text-xs text-gray-500">Drop a single file to autofill, or multiple files to batch create.</p>
+                            <p class="text-xs text-gray-500">PDF or DOCX files</p>
                         </div>
                         <div id="file-display" class="hidden mt-2 text-sm text-gray-700 items-center justify-center">
                             <!-- File name will be shown here -->
@@ -627,7 +607,7 @@
         };
         
         const handleAiAutofill = async () => {
-            const apiKey = localStorage.getItem('geminiApiKey');
+            const apiKey = document.getElementById('apiKeyInput').value;
             const aiErrorEl = document.getElementById('ai-error');
             const apiKeyContainer = document.getElementById('api-key-input-container');
 
@@ -644,9 +624,83 @@
             autofillBtn.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="animate-spin mr-2"><path d="M21 12a9 9 0 1 1-6.219-8.56"></path></svg> Processing...`;
             aiErrorEl.textContent = '';
             
-            try {
-                const extractedData = await getApplicantDataFromAi(extractedFileText, apiKey);
+            const aiCriteria = rankingCriteria.filter(c => c.isAiPowered);
+            const schemaProperties = {
+                "name": { "type": "STRING" },
+                "email": { "type": "STRING" },
+                "notes": { "type": "STRING" }
+            };
+            const requiredFields = ["name", "email", "notes"];
+
+            const dynamicPrompts = aiCriteria.map(c => {
+                let instruction = '';
+                let isValidForSchema = false;
+                switch(c.type) {
+                    case 'numeric':
+                        schemaProperties[c.id] = { "type": "NUMBER" };
+                        instruction = `A number from ${c.min || 0} to ${c.max || 10} based on this instruction: ${c.aiPrompt}`;
+                        isValidForSchema = true;
+                        break;
+                    case 'yes_no':
+                        schemaProperties[c.id] = { "type": "STRING", "enum": ["Yes", "No"] };
+                        instruction = `Answer 'Yes' or 'No' based on this instruction: ${c.aiPrompt}`;
+                        isValidForSchema = true;
+                        break;
+                    case 'tiered':
+                        const levels = (c.tiers || []).map(t => t.level).filter(Boolean); // Filter out empty/null levels
+                        if (levels.length > 0) {
+                            schemaProperties[c.id] = { "type": "STRING", "enum": levels };
+                            instruction = `Choose one of these options [${levels.join(', ')}] based on this instruction: ${c.aiPrompt}`;
+                            isValidForSchema = true;
+                        }
+                        break;
+                }
                 
+                if (isValidForSchema) {
+                    requiredFields.push(c.id);
+                    return `"${c.id}": "${instruction}"`;
+                }
+                return null;
+            }).filter(p => p !== null).join(',\n');
+            
+            const prompt = `You are an expert HR assistant. Based on the following resume text, extract the candidate's information. Format the output as a JSON object.
+                Resume Text: --- ${extractedFileText} ---
+                Desired JSON Output Structure: {
+                    "name": "Candidate's full name",
+                    "email": "Candidate's email address",
+                    "notes": "A brief 2-3 sentence summary of key qualifications.",
+                    ${dynamicPrompts}
+                }`;
+            
+            const generationConfig = {
+                responseMimeType: "application/json",
+                responseSchema: {
+                    type: "OBJECT",
+                    properties: schemaProperties,
+                    required: requiredFields
+                }
+            };
+
+            try {
+                const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-05-20:generateContent?key=${apiKey}`;
+                const payload = { contents: [{ role: "user", parts: [{ text: prompt }] }], generationConfig };
+                const response = await fetch(apiUrl, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+
+                if (!response.ok) {
+                    const errorData = await response.json();
+                    throw new Error(errorData?.error?.message || `API request failed with status ${response.status}`);
+                }
+                
+                const result = await response.json();
+                const aiJsonText = result.candidates?.[0]?.content?.parts?.[0]?.text;
+                if (!aiJsonText) throw new Error("AI returned an unexpected data structure.");
+
+                const extractedData = JSON.parse(aiJsonText);
+
                 // Populate form fields
                 Object.keys(extractedData).forEach(key => {
                     const inputEl = document.getElementById(key);
@@ -676,97 +730,14 @@
             applicantFormModal.classList.add('hidden');
             editingApplicant = null;
         };
-
-        const parseFile = (file) => {
-            return new Promise((resolve, reject) => {
-                if (!file) return reject(new Error("No file provided."));
-
-                const reader = new FileReader();
-                reader.onload = async (e) => {
-                    try {
-                        let textContent = '';
-                        if (file.type === 'application/pdf') {
-                            if (typeof window.pdfjsLib === 'undefined') throw new Error("PDF.js failed to load.");
-                            window.pdfjsLib.GlobalWorkerOptions.workerSrc = `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js`;
-                            const pdf = await window.pdfjsLib.getDocument({ data: e.target.result }).promise;
-                            for (let i = 1; i <= pdf.numPages; i++) {
-                                const page = await pdf.getPage(i);
-                                const content = await page.getTextContent();
-                                textContent += content.items.map(item => item.str).join(' ');
-                            }
-                        } else if (file.name.endsWith('.docx')) {
-                            if (typeof window.mammoth === 'undefined') throw new Error("Mammoth.js failed to load.");
-                            const result = await window.mammoth.extractRawText({ arrayBuffer: e.target.result });
-                            textContent = result.value;
-                        } else {
-                            throw new Error('Unsupported file type. Please use PDF or DOCX.');
-                        }
-                        resolve(textContent);
-                    } catch (err) {
-                        reject(err);
-                    }
-                };
-                reader.onerror = () => reject(new Error("Failed to read file."));
-                reader.readAsArrayBuffer(file);
-            });
-        };
         
         const setupFileDropZone = () => {
             const dropZone = document.getElementById('file-drop-zone');
-            if(!dropZone) return; 
+            if(!dropZone) return; // Already setup
             const fileInput = document.getElementById('file-input');
-            
-            const processSingleFileForAutofill = async (file) => {
-                if (!file) return;
-                
-                const autofillBtn = document.getElementById('ai-autofill-btn');
-                const dropZoneText = document.getElementById('drop-zone-text');
-                const fileDisplay = document.getElementById('file-display');
-
-                autofillBtn.disabled = true;
-                dropZoneText.classList.add('hidden');
-                fileDisplay.classList.remove('hidden');
-                fileDisplay.innerHTML = `<svg class="animate-spin h-5 w-5 text-gray-500 mr-2" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg> <span>Parsing: ${file.name}</span>`;
-
-                try {
-                    extractedFileText = await parseFile(file);
-                    fileDisplay.innerHTML = `<svg class="h-5 w-5 text-green-500 mr-2" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd" /></svg> <span>Ready: ${file.name}</span>`;
-                    autofillBtn.disabled = false;
-                } catch (err) {
-                    console.error("File parsing error:", err);
-                    showMessage("Error", err.message);
-                    extractedFileText = '';
-                    dropZoneText.classList.remove('hidden');
-                    fileDisplay.classList.add('hidden');
-                }
-            };
-
-            const handleFilesFromForm = (files) => {
-                if (!files || files.length === 0) {
-                    return;
-                }
-
-                if (files.length > 1) {
-                    // Multiple files dropped - confirm batch upload
-                    showConfirmModal(
-                        'Batch Upload?',
-                        `You have selected ${files.length} files. This will automatically create ${files.length} new applicants and close this form. Do you want to proceed?`,
-                        () => {
-                            closeApplicantForm();
-                            handleBatchUpload(files);
-                        }
-                    );
-                    // Customize confirm button for clarity
-                    const okBtn = document.getElementById('confirm-ok-btn');
-                    okBtn.textContent = 'Proceed';
-                    okBtn.classList.remove('bg-red-600', 'hover:bg-red-700');
-                    okBtn.classList.add('bg-blue-600', 'hover:bg-blue-700');
-
-                } else {
-                    // Single file dropped - use original autofill logic
-                    processSingleFileForAutofill(files[0]);
-                }
-            };
+            const dropZoneText = document.getElementById('drop-zone-text');
+            const fileDisplay = document.getElementById('file-display');
+            const autofillBtn = document.getElementById('ai-autofill-btn');
 
             const highlight = () => dropZone.classList.add('drop-zone-highlight');
             const unhighlight = () => dropZone.classList.remove('drop-zone-highlight');
@@ -779,8 +750,52 @@
             ['dragenter', 'dragover'].forEach(eventName => dropZone.addEventListener(eventName, highlight, false));
             ['dragleave', 'drop'].forEach(eventName => dropZone.addEventListener(eventName, unhighlight, false));
 
-            dropZone.addEventListener('drop', (e) => handleFilesFromForm(e.dataTransfer.files));
-            fileInput.addEventListener('change', (e) => handleFilesFromForm(e.target.files));
+            dropZone.addEventListener('drop', (e) => handleFile(e.dataTransfer.files[0]));
+            fileInput.addEventListener('change', (e) => handleFile(e.target.files[0]));
+
+            const handleFile = (file) => {
+                if (!file) return;
+                
+                autofillBtn.disabled = true;
+                dropZoneText.classList.add('hidden');
+                fileDisplay.classList.remove('hidden');
+                fileDisplay.innerHTML = `<svg class="animate-spin h-5 w-5 text-gray-500 mr-2" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg> <span>Parsing: ${file.name}</span>`;
+
+                const reader = new FileReader();
+                reader.onload = async (e) => {
+                    try {
+                        if (file.type === 'application/pdf') {
+                            if (typeof window.pdfjsLib === 'undefined') throw new Error("PDF.js failed to load.");
+                            window.pdfjsLib.GlobalWorkerOptions.workerSrc = `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js`;
+                            const pdf = await window.pdfjsLib.getDocument({ data: e.target.result }).promise;
+                            let text = '';
+                            for (let i = 1; i <= pdf.numPages; i++) {
+                                const page = await pdf.getPage(i);
+                                const content = await page.getTextContent();
+                                text += content.items.map(item => item.str).join(' ');
+                            }
+                            extractedFileText = text;
+                        } else if (file.name.endsWith('.docx')) {
+                            if (typeof window.mammoth === 'undefined') throw new Error("Mammoth.js failed to load.");
+                            const result = await window.mammoth.extractRawText({ arrayBuffer: e.target.result });
+                            extractedFileText = result.value;
+                        } else {
+                            throw new Error('Unsupported file type. Please use PDF or DOCX.');
+                        }
+                        
+                        fileDisplay.innerHTML = `<svg class="h-5 w-5 text-green-500 mr-2" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd" /></svg> <span>Ready: ${file.name}</span>`;
+                        autofillBtn.disabled = false;
+
+                    } catch (err) {
+                        console.error("File parsing error:", err);
+                        showMessage("Error", err.message);
+                        extractedFileText = '';
+                        dropZoneText.classList.remove('hidden');
+                        fileDisplay.classList.add('hidden');
+                    }
+                };
+                reader.readAsArrayBuffer(file);
+            };
         };
 
         // --- EVENT LISTENERS INITIALIZATION ---
@@ -800,11 +815,6 @@
             confirmModal.classList.add('hidden');
             confirmModal.classList.remove('modal-enter-active');
             confirmCallback = null;
-            // Reset button to default delete style
-            const okBtn = document.getElementById('confirm-ok-btn');
-            okBtn.textContent = 'Delete';
-            okBtn.classList.remove('bg-blue-600', 'hover:bg-blue-700');
-            okBtn.classList.add('bg-red-600', 'hover:bg-red-700');
         });
         document.getElementById('confirm-ok-btn').addEventListener('click', () => {
             if (confirmCallback) {
@@ -866,12 +876,7 @@
                 handleAiAutofill(); return;
             }
             if (e.target.id === 'save-api-key-btn') {
-                 const apiKey = document.getElementById('apiKeyInput').value;
-                 if (apiKey) {
-                    localStorage.setItem('geminiApiKey', apiKey);
-                    document.getElementById('api-key-input-container').classList.add('hidden');
-                 }
-                 return;
+                document.getElementById('api-key-input-container').classList.add('hidden'); return;
             }
 
             // Criteria config buttons
@@ -879,7 +884,7 @@
                 handleSaveCriteria(); return;
             }
             if (e.target.id === 'add-crit-btn') {
-                rankingCriteria.unshift({ id: generateId(), name: 'New Criterion', weight: 0.1, type: 'numeric', min: 0, max: 10, isAiPowered: false, aiPrompt: '' });
+                rankingCriteria.push({ id: generateId(), name: 'New Criterion', weight: 0.1, type: 'numeric', min: 0, max: 10, isAiPowered: false, aiPrompt: '' });
                 renderCriteriaConfig(); return;
             }
             const removeCritBtn = e.target.closest('.remove-crit-btn');
@@ -948,19 +953,6 @@
                     crit[field] = value;
                 }
                 
-                // If a weight was changed, update the total display in real-time
-                if (field === 'weight') {
-                    const totalWeightDisplay = document.getElementById('total-weight-display');
-                    if (totalWeightDisplay) {
-                        const currentTotal = rankingCriteria.reduce((sum, c) => sum + parseFloat(c.weight || 0), 0);
-                        totalWeightDisplay.textContent = `Total Weight: ${currentTotal.toFixed(2)} (Should be 1.00)`;
-                        const needsWarning = Math.abs(currentTotal - 1.0) > 0.01;
-                        totalWeightDisplay.classList.toggle('text-red-600', needsWarning);
-                        totalWeightDisplay.classList.toggle('font-semibold', needsWarning);
-                        totalWeightDisplay.classList.toggle('text-gray-600', !needsWarning);
-                    }
-                }
-                
                 if (field === 'type') {
                     // When type changes, re-render to show correct options
                     if(e.target.value === 'tiered' && !crit.tiers) {
@@ -970,127 +962,20 @@
                 }
             }
         });
-        
-        // BATCH PROCESSING LOGIC
-        const setupBatchDropZone = () => {
-            const dropZone = document.getElementById('batch-drop-zone');
-            if (!dropZone) return;
-            
-            dropZone.classList.remove('hidden'); // Show the drop zone
-
-            const highlight = () => dropZone.querySelector('div').classList.add('border-sky-500', 'bg-sky-50');
-            const unhighlight = () => dropZone.querySelector('div').classList.remove('border-sky-500', 'bg-sky-50');
-
-            ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
-                document.body.addEventListener(eventName, (e) => { e.preventDefault(); e.stopPropagation(); }, false);
-            });
-            ['dragenter', 'dragover'].forEach(eventName => document.body.addEventListener(eventName, highlight, false));
-            ['dragleave', 'drop'].forEach(eventName => document.body.addEventListener(eventName, unhighlight, false));
-
-            document.body.addEventListener('drop', (e) => handleBatchUpload(e.dataTransfer.files));
-        };
-        
-        const handleBatchUpload = async (files) => {
-            let apiKey = localStorage.getItem('geminiApiKey');
-            const keyContainer = document.getElementById('batch-api-key-container');
-
-            if (!apiKey) {
-                keyContainer.classList.remove('hidden');
-                document.getElementById('batch-save-api-key-btn').onclick = () => {
-                    const newKey = document.getElementById('batchApiKeyInput').value;
-                    if (newKey) {
-                        localStorage.setItem('geminiApiKey', newKey);
-                        keyContainer.classList.add('hidden');
-                        handleBatchUpload(files); // Retry the upload
-                    }
-                };
-                return;
-            }
-
-            loadingOverlay.classList.remove('hidden');
-            
-            const totalFiles = files.length;
-            let successCount = 0;
-            let errorCount = 0;
-            const applicantsPath = `artifacts/${appId}/public/data/applicants`;
-
-            for (let i = 0; i < totalFiles; i++) {
-                const file = files[i];
-                loadingOverlay.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="animate-spin text-blue-500"><path d="M21 12a9 9 0 1 1-6.219-8.56"></path></svg><p class="mt-4 text-lg">Processing ${i + 1} of ${totalFiles}: ${file.name}</p>`;
-                
-                try {
-                    const fileText = await parseFile(file);
-                    const applicantData = await getApplicantDataFromAi(fileText, apiKey);
-                    
-                    const docRef = doc(collection(db, applicantsPath));
-                    await setDoc(docRef, { ...applicantData, id: docRef.id });
-                    successCount++;
-                } catch (err) {
-                    console.error(`Failed to process file ${file.name}:`, err);
-                    errorCount++;
-                }
-            }
-            
-            loadingOverlay.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="animate-spin text-blue-500"><path d="M21 12a9 9 0 1 1-6.219-8.56"></path></svg>`; // Reset spinner
-            loadingOverlay.classList.add('hidden');
-            showMessage("Batch Complete", `Successfully added ${successCount} applicants. ${errorCount} failed.`, "success");
-        };
-
-        const getApplicantDataFromAi = async (text, apiKey) => {
-             // This logic is copied from your handleAiAutofill function
-            const aiCriteria = rankingCriteria.filter(c => c.isAiPowered);
-            const schemaProperties = { "name": { "type": "STRING" }, "email": { "type": "STRING" }, "notes": { "type": "STRING" } };
-            const requiredFields = ["name", "email", "notes"];
-            const dynamicPrompts = aiCriteria.map(c => {
-                let instruction = ''; let isValidForSchema = false;
-                switch(c.type) {
-                    case 'numeric':
-                        schemaProperties[c.id] = { "type": "NUMBER" };
-                        instruction = `A number from ${c.min || 0} to ${c.max || 10} based on this instruction: ${c.aiPrompt}`;
-                        isValidForSchema = true; break;
-                    case 'yes_no':
-                        schemaProperties[c.id] = { "type": "STRING", "enum": ["Yes", "No"] };
-                        instruction = `Answer 'Yes' or 'No' based on this instruction: ${c.aiPrompt}`;
-                        isValidForSchema = true; break;
-                    case 'tiered':
-                        const levels = (c.tiers || []).map(t => t.level).filter(Boolean);
-                        if (levels.length > 0) {
-                            schemaProperties[c.id] = { "type": "STRING", "enum": levels };
-                            instruction = `Choose one of these options [${levels.join(', ')}] based on this instruction: ${c.aiPrompt}`;
-                            isValidForSchema = true;
-                        } break;
-                }
-                if (isValidForSchema) { requiredFields.push(c.id); return `"${c.id}": "${instruction}"`; }
-                return null;
-            }).filter(p => p !== null).join(',\n');
-            
-            const prompt = `You are an expert HR assistant. Based on the following resume text, extract the candidate's information. Format the output as a JSON object. Resume Text: --- ${text} --- Desired JSON Output Structure: { "name": "Candidate's full name", "email": "Candidate's email address", "notes": "A brief 2-3 sentence summary of key qualifications.", ${dynamicPrompts} }`;
-            const generationConfig = { responseMimeType: "application/json", responseSchema: { type: "OBJECT", properties: schemaProperties, required: requiredFields } };
-            const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-05-20:generateContent?key=${apiKey}`;
-            const payload = { contents: [{ role: "user", parts: [{ text: prompt }] }], generationConfig };
-            const response = await fetch(apiUrl, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
-
-            if (!response.ok) {
-                const errorData = await response.json();
-                throw new Error(errorData?.error?.message || `API request failed with status ${response.status}`);
-            }
-            
-            const result = await response.json();
-            const aiJsonText = result.candidates?.[0]?.content?.parts?.[0]?.text;
-            if (!aiJsonText) throw new Error("AI returned an unexpected data structure.");
-
-            return JSON.parse(aiJsonText);
-        };
 
         // --- FIREBASE INITIALIZATION ---
         const initializeAppAndData = () => {
             try {
-                // IMPORTANT: Use environment variables or a secure config method in production
-                const firebaseConfig = JSON.parse(typeof __firebase_config !== 'undefined' ? __firebase_config : '{}');
-                
-                if (!firebaseConfig.apiKey) {
-                    throw new Error("Firebase config not found.");
-                }
+                // Your web app's Firebase configuration
+                const firebaseConfig = {
+                    apiKey: "AIzaSyDbEHK5i4hGsPn22_nzZcZUhfeND3eD7fc",
+                    authDomain: "applicant-ranker.firebaseapp.com",
+                    projectId: "applicant-ranker",
+                    storageBucket: "applicant-ranker.appspot.com",
+                    messagingSenderId: "835014203027",
+                    appId: "1:835014203027:web:75da7394d8e5ec17c41f66",
+                    measurementId: "G-JZ8LLS47YG"
+                };
 
                 const app = initializeApp(firebaseConfig);
                 db = getFirestore(app);
@@ -1099,6 +984,8 @@
                 onAuthStateChanged(auth, async (user) => {
                     if (!user) {
                         try {
+                            // This part is for compatibility with certain deployment environments.
+                            // For a standard web deployment, you might only use signInAnonymously.
                             const token = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : null;
                             if (token) {
                                 await signInWithCustomToken(auth, token);
@@ -1118,14 +1005,9 @@
                         attachFirestoreListeners();
                     }
                 });
-
-                // Set up the new batch processing drop zone
-                setupBatchDropZone();
-
             } catch (e) {
                 console.error("Firebase Init Error:", e);
                 showMessage("Initialization Error", "Failed to initialize the application. Check Firebase config.");
-                loadingOverlay.classList.add('hidden');
             }
         };
                 
@@ -1184,6 +1066,4 @@
     </script>
 </body>
 </html>
-
-
 
