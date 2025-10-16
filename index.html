@@ -5,15 +5,12 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Applicant Ranking System</title>
     
-    <!-- Tailwind CSS for styling -->
     <script src="https://cdn.tailwindcss.com"></script>
     
-    <!-- Google Fonts for a nicer look -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 
-    <!-- PDF and DOCX parsing libraries -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/mammoth/1.6.0/mammoth.browser.min.js"></script>
 
@@ -63,19 +60,15 @@
 </head>
 <body class="bg-gradient-to-br from-slate-100 to-sky-100">
 
-    <!-- Main Application Container -->
     <div id="app-container" class="p-4 sm:p-6 md:p-8 font-sans">
         
-        <!-- Header -->
         <header class="mb-8 text-center">
             <h1 class="text-4xl font-bold text-slate-700">Applicant Ranking System</h1>
             <p class="text-slate-500 mt-2">Efficiently compare and rank job candidates.</p>
             <div id="user-id-display" class="mt-4 inline-flex items-center bg-blue-100 text-blue-800 text-xs font-semibold px-2.5 py-1 rounded-full hidden">
-                <!-- User ID will be inserted here by JS -->
-            </div>
+                </div>
         </header>
 
-        <!-- BATCH UPLOAD DROP ZONE -->
         <div id="batch-drop-zone" class="mb-6 hidden">
             <div class="border-4 border-dashed border-gray-300 rounded-lg p-8 text-center cursor-pointer hover:border-sky-500 hover:bg-sky-50 transition-colors duration-200">
                 <svg class="mx-auto h-12 w-12 text-gray-400" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
@@ -95,35 +88,35 @@
             </div>
         </div>
 
-        <!-- Main Controls -->
         <div class="mb-6 flex flex-col sm:flex-row justify-between items-center gap-4">
             <button id="add-applicant-btn" class="flex items-center bg-blue-500 hover:bg-blue-600 text-white font-semibold py-2 px-4 rounded-lg shadow-md transition-transform transform hover:scale-105" title="Add a new candidate to the list">
-                <!-- PlusCircle Icon -->
                 <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="mr-2"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="8" x2="12" y2="16"></line><line x1="8" y1="12" x2="16" y2="12"></line></svg>
                 Add New Applicant Manually
             </button>
             <input type="text" id="search-input" placeholder="Search applicants by name..." class="p-2 border border-gray-300 rounded-lg shadow-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent w-full sm:w-auto" title="Filter the list by applicant name">
         </div>
 
-        <!-- Configuration Panel Section -->
         <div class="mb-6 bg-white shadow-lg rounded-lg overflow-hidden">
             <button id="toggle-config-btn" class="w-full p-4 text-left bg-gray-100 hover:bg-gray-200 focus:outline-none flex justify-between items-center transition-colors duration-150" title="Click to expand or collapse the settings panel">
                 <h2 class="text-xl font-semibold text-gray-700">Configuration Panel</h2>
                 <div id="config-chevron">
-                    <!-- ChevronDown Icon -->
                     <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"></polyline></svg>
                 </div>
             </button>
             <div id="config-panel" class="p-4 border-t border-gray-200 hidden">
-                <!-- Criteria configuration will be rendered here by JS -->
-            </div>
+                </div>
         </div>
 
-        <!-- Ranked Applicants Table -->
         <div class="bg-white shadow-xl rounded-lg overflow-hidden">
-            <div class="p-4 bg-gray-50 border-b border-gray-200">
-                <h2 class="text-2xl font-semibold text-gray-700">Ranked Applicants</h2>
-                <p id="no-applicants-msg" class="text-gray-500 mt-2 hidden">No applicants found or matching search.</p>
+            <div class="p-4 bg-gray-50 border-b border-gray-200 flex justify-between items-center">
+                <div>
+                    <h2 class="text-2xl font-semibold text-gray-700">Ranked Applicants</h2>
+                    <p id="no-applicants-msg" class="text-gray-500 mt-2 hidden">No applicants found or matching search.</p>
+                </div>
+                <button id="delete-all-btn" class="flex items-center bg-red-500 hover:bg-red-600 text-white font-semibold py-2 px-3 rounded-lg shadow-md text-sm transition-colors disabled:bg-gray-400 disabled:cursor-not-allowed" title="Delete all applicants">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="mr-2"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path><line x1="10" y1="11" x2="10" y2="17"></line><line x1="14" y1="11" x2="14" y2="17"></line></svg>
+                    Delete All
+                </button>
             </div>
             <div class="overflow-x-auto">
                 <table class="min-w-full divide-y divide-gray-200">
@@ -137,25 +130,21 @@
                         </tr>
                     </thead>
                     <tbody id="applicants-tbody" class="bg-white divide-y divide-gray-200">
-                        <!-- Applicant rows will be rendered here by JS -->
-                    </tbody>
+                        </tbody>
                 </table>
             </div>
         </div>
 
-        <!-- Footer -->
         <footer class="mt-12 text-center text-sm text-slate-500">
             <p>Applicant Ranking System &copy; <span id="footer-year"></span></p>
         </footer>
     </div>
     
-    <!-- Loading Spinner Overlay -->
     <div id="loading-overlay" class="fixed inset-0 bg-slate-100 bg-opacity-75 flex flex-col items-center justify-center z-50">
         <svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="animate-spin text-blue-500"><path d="M21 12a9 9 0 1 1-6.219-8.56"></path></svg>
     </div>
 
-    <!-- Custom Alert/Error Display -->
-     <div id="message-display" class="hidden fixed top-5 right-5 px-4 py-3 rounded-lg shadow-lg z-50" role="alert">
+    <div id="message-display" class="hidden fixed top-5 right-5 px-4 py-3 rounded-lg shadow-lg z-50" role="alert">
         <div class="flex items-center">
             <div id="message-icon" class="mr-3"></div>
             <div>
@@ -165,14 +154,11 @@
         </div>
     </div>
 
-    <!-- Applicant Form Modal -->
     <div id="applicant-form-modal" class="hidden fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-40 modal-enter">
         <div id="applicant-form-container" class="bg-white p-6 rounded-lg shadow-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto custom-scrollbar">
-            <!-- Form content will be rendered here by JS -->
-        </div>
+            </div>
     </div>
 
-    <!-- Confirmation Modal -->
     <div id="confirm-modal" class="hidden fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50 modal-enter">
         <div class="bg-white p-6 rounded-lg shadow-2xl w-full max-w-sm">
             <h3 id="confirm-title" class="text-lg font-medium text-gray-900">Are you sure?</h3>
@@ -185,7 +171,6 @@
     </div>
 
 
-    <!-- Firebase SDKs -->
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
         import { getAuth, signInAnonymously, onAuthStateChanged, signInWithCustomToken } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
@@ -218,6 +203,7 @@
         const noApplicantsMsg = document.getElementById('no-applicants-msg');
         const searchInput = document.getElementById('search-input');
         const addApplicantBtn = document.getElementById('add-applicant-btn');
+        const deleteAllBtn = document.getElementById('delete-all-btn');
         const applicantFormModal = document.getElementById('applicant-form-modal');
         const applicantFormContainer = document.getElementById('applicant-form-container');
         const configPanel = document.getElementById('config-panel');
@@ -309,6 +295,7 @@
 
             applicantsTbody.innerHTML = ''; // Clear existing rows
             noApplicantsMsg.classList.toggle('hidden', rankedApplicants.length > 0);
+            deleteAllBtn.disabled = applicants.length === 0;
 
             rankedApplicants.forEach((applicant, index) => {
                 const rank = index + 1;
@@ -512,8 +499,7 @@
                             <p class="text-xs text-gray-500">PDF or DOCX files</p>
                         </div>
                         <div id="file-display" class="hidden mt-2 text-sm text-gray-700 items-center justify-center">
-                            <!-- File name will be shown here -->
-                        </div>
+                            </div>
                     </div>
                     <button id="ai-autofill-btn" type="button" class="mt-4 w-full flex items-center justify-center px-4 py-2 text-sm font-medium text-white bg-sky-600 hover:bg-sky-700 border border-transparent rounded-md shadow-sm disabled:bg-gray-400 disabled:cursor-not-allowed" disabled title="Parse the resume and fill fields below">
                         <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="mr-2"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"></polygon></svg>
@@ -603,6 +589,31 @@
             });
         };
         
+        const handleDeleteAllApplicants = async () => {
+            if (applicants.length === 0) {
+                showMessage("No Applicants", "There are no applicants to delete.", "error");
+                return;
+            }
+            showConfirmModal('Delete All Applicants?', `This will permanently delete all ${applicants.length} applicants. This action cannot be undone.`, async () => {
+                const applicantsPath = `artifacts/${appId}/public/data/applicants`;
+                loadingOverlay.classList.remove('hidden');
+                try {
+                    const batch = writeBatch(db);
+                    applicants.forEach(applicant => {
+                        const docRef = doc(db, applicantsPath, applicant.id);
+                        batch.delete(docRef);
+                    });
+                    await batch.commit();
+                    showMessage("Success", "All applicants have been deleted.", "success");
+                } catch (e) {
+                    console.error("Error deleting all applicants:", e);
+                    showMessage("Error", "Failed to delete all applicants.");
+                } finally {
+                    loadingOverlay.classList.add('hidden');
+                }
+            });
+        };
+
         const handleSaveCriteria = async () => {
             const criteriaPath = `artifacts/${appId}/public/data/criteria`;
             loadingOverlay.classList.remove('hidden');
@@ -791,7 +802,7 @@
 
             document.body.addEventListener('drop', (e) => {
                  if (!applicantFormModal.contains(e.target)) { // Prevent main dropzone from firing if modal is open
-                    handleBatchUpload(Array.from(e.dataTransfer.files));
+                     handleBatchUpload(Array.from(e.dataTransfer.files));
                  }
             });
         };
@@ -896,296 +907,3 @@
         };
 
         // --- EVENT LISTENERS INITIALIZATION ---
-        addApplicantBtn.addEventListener('click', () => openApplicantForm());
-        searchInput.addEventListener('input', renderApplicants);
-        
-        toggleConfigBtn.addEventListener('click', () => {
-            const isOpen = !configPanel.classList.contains('hidden');
-            configPanel.classList.toggle('hidden');
-            configChevron.innerHTML = isOpen 
-                ? `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"></polyline></svg>` 
-                : `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="18 15 12 9 6 15"></polyline></svg>`;
-        });
-        
-        // Confirmation Modal Handlers
-        document.getElementById('confirm-cancel-btn').addEventListener('click', () => {
-            confirmModal.classList.add('hidden');
-            confirmModal.classList.remove('modal-enter-active');
-            confirmCallback = null;
-        });
-        document.getElementById('confirm-ok-btn').addEventListener('click', () => {
-            if (confirmCallback) {
-                confirmCallback();
-            }
-            document.getElementById('confirm-cancel-btn').click(); // Close modal
-        });
-
-        // Event delegation for dynamically created elements
-        document.body.addEventListener('click', (e) => {
-            // Applicant table buttons
-            const editBtn = e.target.closest('.edit-btn');
-            if (editBtn) {
-                const applicantId = editBtn.closest('tr').dataset.applicantId;
-                const applicant = applicants.find(a => a.id === applicantId);
-                openApplicantForm(applicant);
-                return;
-            }
-            const deleteBtn = e.target.closest('.delete-btn');
-            if (deleteBtn) {
-                const applicantId = deleteBtn.closest('tr').dataset.applicantId;
-                handleDeleteApplicant(applicantId);
-                return;
-            }
-            const detailsBtn = e.target.closest('.details-btn');
-            if (detailsBtn) {
-                const row = detailsBtn.closest('tr');
-                const detailsRow = row.nextElementSibling;
-                const applicantId = row.dataset.applicantId;
-                const applicant = applicants.find(a => a.id === applicantId);
-                
-                if (detailsRow.classList.contains('hidden')) {
-                    const detailsHTML = `
-                        <div class="text-sm text-gray-700 space-y-2">
-                            <p><strong>Notes:</strong> ${applicant.notes || 'N/A'}</p>
-                            <div class="mt-2 pt-2 border-t">
-                                <h4 class="font-semibold mb-1">Score Inputs:</h4>
-                                <ul class="list-disc list-inside pl-2 space-y-0.5 text-xs">
-                                    ${rankingCriteria.map(crit => `<li>${crit.name}: ${applicant[crit.id] || 'N/A'}</li>`).join('')}
-                                </ul>
-                            </div>
-                        </div>
-                    `;
-                    detailsRow.querySelector('td').innerHTML = detailsHTML;
-                    detailsRow.classList.remove('hidden');
-                    detailsBtn.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="18 15 12 9 6 15"></polyline></svg>`;
-                } else {
-                    detailsRow.classList.add('hidden');
-                    detailsBtn.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"></polyline></svg>`;
-                }
-                return;
-            }
-
-            // Applicant form buttons
-            if (e.target.closest('#close-form-btn') || e.target.closest('#cancel-form-btn')) {
-                closeApplicantForm(); return;
-            }
-            if (e.target.id === 'ai-autofill-btn') {
-                handleAiAutofill(); return;
-            }
-            if (e.target.id === 'save-api-key-btn') {
-                 const apiKey = document.getElementById('apiKeyInput').value;
-                 if(apiKey) localStorage.setItem('geminiApiKey', apiKey);
-                document.getElementById('api-key-input-container').classList.add('hidden'); return;
-            }
-
-            // Criteria config buttons
-            if (e.target.id === 'save-criteria-btn') {
-                handleSaveCriteria(); return;
-            }
-            if (e.target.id === 'add-crit-btn') {
-                rankingCriteria.unshift({ id: generateId(), name: 'New Criterion', weight: 0.1, type: 'numeric', min: 0, max: 10, isAiPowered: false, aiPrompt: '' });
-                renderCriteriaConfig(); return;
-            }
-            const removeCritBtn = e.target.closest('.remove-crit-btn');
-            if (removeCritBtn) {
-                const critId = removeCritBtn.closest('[data-crit-id]').dataset.critId;
-                rankingCriteria = rankingCriteria.filter(c => c.id !== critId);
-                renderCriteriaConfig(); return;
-            }
-            const addTierBtn = e.target.closest('.add-tier-btn');
-            if (addTierBtn) {
-                const critId = addTierBtn.closest('[data-crit-id]').dataset.critId;
-                const crit = rankingCriteria.find(c => c.id === critId);
-                if (!crit.tiers) crit.tiers = [];
-                crit.tiers.push({ level: 'New Level', score: 0 });
-                renderCriteriaConfig(); return;
-            }
-            const removeTierBtn = e.target.closest('.remove-tier-btn');
-            if (removeTierBtn) {
-                const critId = removeTierBtn.closest('[data-crit-id]').dataset.critId;
-                const crit = rankingCriteria.find(c => c.id === critId);
-                const tierIndex = parseInt(removeTierBtn.dataset.tierIndex, 10);
-                crit.tiers.splice(tierIndex, 1);
-                renderCriteriaConfig(); return;
-            }
-        });
-
-        // Handle form submission
-        document.body.addEventListener('submit', (e) => {
-            if (e.target.id === 'applicant-form') {
-                e.preventDefault();
-                const form = e.target;
-                const formData = new FormData(form);
-                const data = {};
-                for (let [key, value] of formData.entries()) {
-                    const crit = rankingCriteria.find(c => c.id === key);
-                    data[key] = (crit && crit.type === 'numeric') ? parseFloat(value) : value;
-                }
-                handleSaveApplicant(data);
-            }
-        });
-
-        // Handle criteria input changes
-        configPanel.addEventListener('input', (e) => {
-            if (e.target.classList.contains('crit-input')) {
-                const critEl = e.target.closest('[data-crit-id]');
-                const critId = critEl.dataset.critId;
-                const critIndex = rankingCriteria.findIndex(c => c.id === critId);
-                if (critIndex === -1) return;
-
-                const crit = rankingCriteria[critIndex];
-                
-                // Handle tier inputs
-                if(e.target.dataset.tierIndex) {
-                    const tierIndex = parseInt(e.target.dataset.tierIndex, 10);
-                    const tierField = e.target.dataset.tierField;
-                    crit.tiers[tierIndex][tierField] = e.target.value;
-                    return; // Done with this event
-                }
-
-                const field = e.target.dataset.field;
-                if (e.target.type === 'checkbox') {
-                    crit[field] = e.target.checked;
-                    critEl.querySelector('.ai-prompt-container').classList.toggle('hidden', !e.target.checked);
-                } else {
-                    const value = e.target.type === 'number' ? parseFloat(e.target.value) : e.target.value;
-                    crit[field] = value;
-                }
-                
-                // If a weight was changed, update the total display in real-time
-                if (field === 'weight') {
-                    const totalWeightDisplay = document.getElementById('total-weight-display');
-                    if (totalWeightDisplay) {
-                        const currentTotal = rankingCriteria.reduce((sum, c) => sum + parseFloat(c.weight || 0), 0);
-                        totalWeightDisplay.textContent = `Total Weight: ${currentTotal.toFixed(2)} (Should be 1.00)`;
-                        const needsWarning = Math.abs(currentTotal - 1.0) > 0.01;
-                        totalWeightDisplay.classList.toggle('text-red-600', needsWarning);
-                        totalWeightDisplay.classList.toggle('font-semibold', needsWarning);
-                        totalWeightDisplay.classList.toggle('text-gray-600', !needsWarning);
-                    }
-                }
-                
-                if (field === 'type') {
-                    // When type changes, re-render to show correct options
-                    if(e.target.value === 'tiered' && !crit.tiers) {
-                        crit.tiers = [{level: 'Default', score: 5}];
-                    }
-                    renderCriteriaConfig();
-                }
-            }
-        });
-
-        // --- FIREBASE INITIALIZATION ---
-        const initializeAppAndData = () => {
-            try {
-                // This will use the config you provided.
-                 const firebaseConfig = {
-                    apiKey: "AIzaSyDbEHK5i4hGsPn22_nzZcZUhfeND3eD7fc",
-                    authDomain: "applicant-ranker.firebaseapp.com",
-                    projectId: "applicant-ranker",
-                    storageBucket: "applicant-ranker.firebasestorage.app",
-                    messagingSenderId: "835014203027",
-                    appId: "1:835014203027:web:75da7394d8e5ec17c41f66",
-                    measurementId: "G-JZ8LLS47YG"
-                };
-
-                // Check if the config is populated
-                if (!firebaseConfig.apiKey) {
-                    const envConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : {};
-                    if (envConfig.apiKey) {
-                        Object.assign(firebaseConfig, envConfig);
-                    } else {
-                       throw new Error("Firebase config not found.");
-                    }
-                }
-
-                const app = initializeApp(firebaseConfig);
-                db = getFirestore(app);
-                auth = getAuth(app);
-
-                onAuthStateChanged(auth, async (user) => {
-                    if (!user) {
-                        try {
-                            const token = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : null;
-                            if (token) {
-                                await signInWithCustomToken(auth, token);
-                            } else {
-                                await signInAnonymously(auth);
-                            }
-                        } catch (authError) {
-                            console.error("Authentication Error:", authError);
-                            showMessage("Error", "Failed to authenticate. Please refresh.");
-                        }
-                    }
-                    
-                    if (auth.currentUser) {
-                        userId = auth.currentUser.uid;
-                        userIdDisplay.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="mr-2"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg> <span class="mr-1 font-normal">Session ID:</span> ${userId}`;
-                        userIdDisplay.classList.remove('hidden');
-                        attachFirestoreListeners();
-                    }
-                });
-                
-                setupBatchDropZone();
-            } catch (e) {
-                console.error("Firebase Init Error:", e);
-                showMessage("Initialization Error", "Failed to initialize the application. Check Firebase config.");
-            }
-        };
-                
-        const attachFirestoreListeners = () => {
-            if (unsubscribeApplicants) unsubscribeApplicants();
-            if (unsubscribeCriteria) unsubscribeCriteria();
-
-            const applicantsPath = `artifacts/${appId}/public/data/applicants`;
-            const criteriaPath = `artifacts/${appId}/public/data/criteria`;
-
-            unsubscribeApplicants = onSnapshot(query(collection(db, applicantsPath)), (snapshot) => {
-                applicants = snapshot.docs.map(doc => ({ ...doc.data(), id: doc.id }));
-                renderApplicants();
-                loadingOverlay.classList.add('hidden');
-            }, (err) => {
-                console.error("Error fetching applicants:", err);
-                showMessage("Error", "Could not load applicant data.");
-            });
-
-            unsubscribeCriteria = onSnapshot(query(collection(db, criteriaPath)), async (snapshot) => {
-                let criteriaList = snapshot.docs.map(doc => ({ ...doc.data(), id: doc.id }));
-                if (criteriaList.length === 0) {
-                    console.log("No criteria found. Seeding with initial data...");
-                    const batch = writeBatch(db);
-                    initialCriteria.forEach(crit => {
-                        const docRef = doc(db, criteriaPath, crit.id);
-                        batch.set(docRef, crit);
-                    });
-                    await batch.commit();
-                    // Listener will fire again with the new data
-                } else {
-                    rankingCriteria = criteriaList;
-                    renderCriteriaConfig();
-                    renderApplicants(); // Re-render applicants in case criteria changed
-                }
-            }, (err) => {
-                console.error("Error fetching criteria:", err);
-                showMessage("Error", "Could not load ranking criteria.");
-            });
-        };
-
-        // --- START THE APP ---
-        const startApp = (startTime = Date.now()) => {
-            const TIMEOUT = 5000; // 5 seconds
-            if (typeof window.pdfjsLib !== 'undefined' && typeof window.mammoth !== 'undefined') {
-                initializeAppAndData();
-            } else if (Date.now() - startTime > TIMEOUT) {
-                showMessage("Loading Error", "Failed to load external parsing libraries. Please refresh the page.");
-            } else {
-                setTimeout(() => startApp(startTime), 100);
-            }
-        };
-        
-        window.onload = startApp;
-
-    </script>
-</body>
-</html>
-
