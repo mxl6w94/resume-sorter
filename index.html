@@ -1090,9 +1090,26 @@
             }
             const removeCritBtn = e.target.closest('.remove-crit-btn');
             if (removeCritBtn) {
+                // 1. Ask for confirmation
+                if (!confirm("Are you sure you want to delete this criterion permanently?")) return;
+            
                 const critId = removeCritBtn.closest('[data-crit-id]').dataset.critId;
-                rankingCriteria = rankingCriteria.filter(c => c.id !== critId);
-                renderCriteriaConfig(); return;
+                
+                // 2. Delete strictly from Firebase
+                const criteriaPath = `artifacts/${appId}/public/data/criteria`;
+                
+                // Show a loading state or just delete
+                deleteDoc(doc(db, criteriaPath, critId))
+                    .then(() => {
+                        // The onSnapshot listener handles the UI update automatically
+                        console.log("Criterion deleted from DB");
+                    })
+                    .catch((error) => {
+                        console.error("Error deleting criterion:", error);
+                        alert("Failed to delete criterion.");
+                    });
+                    
+                return;
             }
             const addTierBtn = e.target.closest('.add-tier-btn');
             if (addTierBtn) {
