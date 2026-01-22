@@ -973,7 +973,7 @@
 
             const prompt = `You are an expert HR assistant. Based on the following resume text, extract the candidate's information. Format the output as a JSON object. Resume Text: --- ${text} --- Desired JSON Output Structure: { "name": "Candidate's full name", "email": "Candidate's email address", "notes": "A brief 2-3 sentence summary of key qualifications.", ${dynamicPrompts} }`;
             const generationConfig = { responseMimeType: "application/json", responseSchema: { type: "OBJECT", properties: schemaProperties, required: requiredFields } };
-            const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`;
+            const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`;
             const payload = { contents: [{ role: "user", parts: [{ text: prompt }] }], generationConfig };
 
             // Exponential backoff for retries
