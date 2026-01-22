@@ -666,7 +666,7 @@
 
         const handleDeleteApplicant = async (applicantId) => {
             showConfirmModal('Delete Applicant', 'Are you sure you want to delete this applicant? This action cannot be undone.', async () => {
-                const applicantsPath = `artifacts/${appId}/public/data/applicants`;
+                const applicantsPath = `users/${userId}/applicants`;
                 loadingOverlay.classList.remove('hidden');
                 try {
                     await deleteDoc(doc(db, applicantsPath, applicantId));
@@ -685,7 +685,7 @@
                 return;
             }
             showConfirmModal('Delete All Applicants?', `This will permanently delete all ${applicants.length} applicants. This action cannot be undone.`, async () => {
-                const applicantsPath = `artifacts/${appId}/public/data/applicants`;
+                const applicantsPath = `users/${userId}/applicants`;
                 loadingOverlay.classList.remove('hidden');
                 try {
                     const batch = writeBatch(db);
@@ -1096,7 +1096,7 @@
                 const critId = removeCritBtn.closest('[data-crit-id]').dataset.critId;
                 
                 // 2. Delete strictly from Firebase
-                const criteriaPath = `artifacts/${appId}/public/data/criteria`;
+                const criteriaPath = `users/${userId}/criteria`;
                 
                 // Show a loading state or just delete
                 deleteDoc(doc(db, criteriaPath, critId))
