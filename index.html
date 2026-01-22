@@ -923,9 +923,16 @@
 
             for (let i = 0; i < totalFiles; i++) {
                 const file = files[i];
-                loadingOverlay.querySelector('svg').nextSibling.remove();
-                loadingOverlay.insertAdjacentHTML('beforeend', `<p class="mt-4 text-lg">Processing ${i + 1} of ${totalFiles}: ${file.name}</p>`);
-
+                // This safely clears and updates the status without crashing
+                const statusMsg = `Processing ${i + 1} of ${totalFiles}: ${file.name}`;
+                let statusEl = document.getElementById('batch-status');
+                if (!statusEl) {
+                    statusEl = document.createElement('p');
+                    statusEl.id = 'batch-status';
+                    statusEl.className = 'mt-4 text-lg';
+                    loadingOverlay.appendChild(statusEl);
+                }
+                statusEl.textContent = statusMsg;
                 try {
                     const fileText = await parseFile(file);
                     const applicantData = await getApplicantDataFromAi(fileText, apiKey);
