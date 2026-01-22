@@ -645,7 +645,7 @@
 
         // --- EVENT HANDLERS ---
         const handleSaveApplicant = async (formData) => {
-            const applicantsPath = `artifacts/${appId}/public/data/applicants`;
+            const applicantsPath = `users/${userId}/applicants`;
             loadingOverlay.classList.remove('hidden');
             try {
                 if (editingApplicant) {
@@ -705,7 +705,7 @@
         };
 
         const handleSaveCriteria = async () => {
-            const criteriaPath = `artifacts/${appId}/public/data/criteria`;
+            const criteriaPath = `users/${userId}/criteria`;
             loadingOverlay.classList.remove('hidden');
             try {
                 const batch = writeBatch(db);
@@ -919,7 +919,7 @@
             const totalFiles = files.length;
             let successCount = 0;
             let errorCount = 0;
-            const applicantsPath = `artifacts/${appId}/public/data/applicants`;
+            const applicantsPath = `users/${userId}/applicants`;
 
             for (let i = 0; i < totalFiles; i++) {
                 const file = files[i];
@@ -1286,8 +1286,8 @@ const attachFirestoreListeners = () => {
     if (unsubscribeApplicants) unsubscribeApplicants();
     if (unsubscribeCriteria) unsubscribeCriteria();
 
-    const applicantsPath = `artifacts/${appId}/public/data/applicants`;
-    const criteriaPath = `artifacts/${appId}/public/data/criteria`;
+    const applicantsPath = `users/${userId}/applicants`;
+    const criteriaPath = `users/${userId}/criteria`;
 
     unsubscribeApplicants = onSnapshot(query(collection(db, applicantsPath)), (snapshot) => {
         applicants = snapshot.docs.map(doc => ({ ...doc.data(), id: doc.id }));
