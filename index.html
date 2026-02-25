@@ -921,15 +921,26 @@
 
             loadingOverlay.classList.remove('hidden');
 
-            const totalFiles = files.length;
+            // Pre-filter: only process PDF and DOCX files; skip others silently.
+            const supportedFiles = files.filter(f => f.type === 'application/pdf' || f.name.endsWith('.docx'));
+            const skippedCount = files.length - supportedFiles.length;
+            if (skippedCount > 0) {
+                console.warn(`Batch upload: skipped ${skippedCount} unsupported file(s) (not PDF or DOCX).`);
+            }
+
+            if (supportedFiles.length === 0) {
+                loadingOverlay.classList.add('hidden');
+                showMessage("No Valid Files", "No supported files found. Please upload PDF or DOCX files.", "error");
+                return;
+            }
+
+            const totalFiles = supportedFiles.length;
             let successCount = 0;
             let errorCount = 0;
             const applicantsPath = `users/${userId}/applicants`;
 
             for (let i = 0; i < totalFiles; i++) {
-                const file = files[i];
-                // This safely clears and updates the status without crashing
-                const statusMsg = `Processing ${i + 1} of ${totalFiles}: ${file.name}`;
+                const file = supportedFiles[i];
                 let statusEl = document.getElementById('batch-status');
                 if (!statusEl) {
                     statusEl = document.createElement('p');
@@ -937,7 +948,7 @@
                     statusEl.className = 'mt-4 text-lg';
                     loadingOverlay.appendChild(statusEl);
                 }
-                statusEl.textContent = statusMsg;
+                statusEl.textContent = `Processing ${i + 1} of ${totalFiles}: ${file.name}`;
                 try {
                     const fileText = await parseFile(file);
                     const applicantData = await getApplicantDataFromAi(fileText, apiKey);
@@ -954,7 +965,8 @@
             const batchStatusEl = document.getElementById('batch-status');
             if (batchStatusEl) batchStatusEl.remove();
             loadingOverlay.classList.add('hidden');
-            showMessage("Batch Complete", `Successfully added ${successCount} applicants. ${errorCount} failed.`, "success");
+            const skippedMsg = skippedCount > 0 ? ` ${skippedCount} skipped (unsupported type).` : '';
+            showMessage("Batch Complete", `Successfully added ${successCount} applicants. ${errorCount} failed.${skippedMsg}`, successCount > 0 ? "success" : "error");
         };
 
         const getApplicantDataFromAi = async (text, apiKey) => {
