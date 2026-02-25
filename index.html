@@ -946,7 +946,8 @@
                 }
             }
 
-            loadingOverlay.querySelector('p').remove();
+            const batchStatusEl = document.getElementById('batch-status');
+            if (batchStatusEl) batchStatusEl.remove();
             loadingOverlay.classList.add('hidden');
             showMessage("Batch Complete", `Successfully added ${successCount} applicants. ${errorCount} failed.`, "success");
         };
@@ -980,7 +981,7 @@
 
             const prompt = `You are an expert HR assistant. Based on the following resume text, extract the candidate's information. Format the output as a JSON object. Resume Text: --- ${text} --- Desired JSON Output Structure: { "name": "Candidate's full name", "email": "Candidate's email address", "notes": "A brief 2-3 sentence summary of key qualifications.", ${dynamicPrompts} }`;
             const generationConfig = { responseMimeType: "application/json", responseSchema: { type: "OBJECT", properties: schemaProperties, required: requiredFields } };
-            const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`;
+            const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`;
             const payload = { contents: [{ role: "user", parts: [{ text: prompt }] }], generationConfig };
 
             // Exponential backoff for retries
@@ -1099,12 +1100,12 @@
             if (removeCritBtn) {
                 // 1. Ask for confirmation
                 if (!confirm("Are you sure you want to delete this criterion permanently?")) return;
-            
+
                 const critId = removeCritBtn.closest('[data-crit-id]').dataset.critId;
-                
+
                 // 2. Delete strictly from Firebase
                 const criteriaPath = `users/${userId}/criteria`;
-                
+
                 // Show a loading state or just delete
                 deleteDoc(doc(db, criteriaPath, critId))
                     .then(() => {
@@ -1115,7 +1116,7 @@
                         console.error("Error deleting criterion:", error);
                         alert("Failed to delete criterion.");
                     });
-                    
+
                 return;
             }
             const addTierBtn = e.target.closest('.add-tier-btn');
@@ -1207,140 +1208,141 @@
         });
 
         // --- FIREBASE INITIALIZATION ---
-const initializeAppAndData = () => {
-    try {
-        // This will use the config you provided.
-        const firebaseConfig = {
-            apiKey: "AIzaSyDbEHK5i4hGsPn22_nzZcZUhfeND3eD7fc",
-            authDomain: "applicant-ranker.firebaseapp.com",
-            projectId: "applicant-ranker",
-            storageBucket: "applicant-ranker.firebasestorage.app",
-            messagingSenderId: "835014203027",
-            appId: "1:835014203027:web:75da7394d8e5ec17c41f66",
-            measurementId: "G-JZ8LLS47YG"
+        const initializeAppAndData = () => {
+            try {
+                // This will use the config you provided.
+                const firebaseConfig = {
+                    apiKey: "AIzaSyDbEHK5i4hGsPn22_nzZcZUhfeND3eD7fc",
+                    authDomain: "applicant-ranker.firebaseapp.com",
+                    projectId: "applicant-ranker",
+                    storageBucket: "applicant-ranker.firebasestorage.app",
+                    messagingSenderId: "835014203027",
+                    appId: "1:835014203027:web:75da7394d8e5ec17c41f66",
+                    measurementId: "G-JZ8LLS47YG"
+                };
+
+                // Check if the config is populated
+                if (!firebaseConfig.apiKey) {
+                    const envConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : {};
+                    if (envConfig.apiKey) {
+                        Object.assign(firebaseConfig, envConfig);
+                    } else {
+                        throw new Error("Firebase config not found.");
+                    }
+                }
+
+                const app = initializeApp(firebaseConfig);
+                db = getFirestore(app);
+                auth = getAuth(app);
+
+                const loginScreen = document.getElementById('login-screen');
+                const appContainer = document.getElementById('app-container');
+                const googleLoginBtn = document.getElementById('google-login-btn');
+                const signOutBtn = document.getElementById('sign-out-btn');
+
+                // Google Login Handler
+                googleLoginBtn.addEventListener('click', async () => {
+                    const provider = new GoogleAuthProvider();
+                    try {
+                        await signInWithPopup(auth, provider);
+                    } catch (error) {
+                        console.error("Login Failed:", error);
+                        showMessage("Login Error", error.message);
+                    }
+                });
+
+                // Sign Out Handler
+                signOutBtn.addEventListener('click', async () => {
+                    try {
+                        await signOut(auth);
+                        window.location.reload(); // Reload to clear state
+                    } catch (error) {
+                        console.error("Sign Out Failed:", error);
+                    }
+                });
+
+                onAuthStateChanged(auth, async (user) => {
+                    if (user) {
+                        // User is signed in
+                        loginScreen.classList.add('hidden');
+                        appContainer.classList.remove('hidden');
+
+                        userId = user.uid;
+                        userIdDisplay.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="mr-2"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg> <span class="mr-1 font-normal">User:</span> ${user.displayName || user.email || 'Anonymous'}`;
+                        userIdDisplay.classList.remove('hidden');
+                        signOutBtn.classList.remove('hidden');
+
+                        attachFirestoreListeners();
+                    } else {
+                        // User is signed out
+                        loginScreen.classList.remove('hidden');
+                        appContainer.classList.add('hidden');
+                        userIdDisplay.classList.add('hidden');
+                        signOutBtn.classList.add('hidden');
+                        loadingOverlay.classList.add('hidden');
+                    }
+                });
+
+                setupBatchDropZone();
+            } catch (e) {
+                console.error("Firebase Init Error:", e);
+                showMessage("Initialization Error", "Failed to initialize the application. Check Firebase config.");
+            }
         };
 
-        // Check if the config is populated
-        if (!firebaseConfig.apiKey) {
-            const envConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : {};
-            if (envConfig.apiKey) {
-                Object.assign(firebaseConfig, envConfig);
-            } else {
-                throw new Error("Firebase config not found.");
-            }
-        }
+        const attachFirestoreListeners = () => {
+            if (unsubscribeApplicants) unsubscribeApplicants();
+            if (unsubscribeCriteria) unsubscribeCriteria();
 
-        const app = initializeApp(firebaseConfig);
-        db = getFirestore(app);
-        auth = getAuth(app);
+            const applicantsPath = `users/${userId}/applicants`;
+            const criteriaPath = `users/${userId}/criteria`;
 
-        const loginScreen = document.getElementById('login-screen');
-        const appContainer = document.getElementById('app-container');
-        const googleLoginBtn = document.getElementById('google-login-btn');
-        const signOutBtn = document.getElementById('sign-out-btn');
-
-        // Google Login Handler
-        googleLoginBtn.addEventListener('click', async () => {
-            const provider = new GoogleAuthProvider();
-            try {
-                await signInWithPopup(auth, provider);
-            } catch (error) {
-                console.error("Login Failed:", error);
-                showMessage("Login Error", error.message);
-            }
-        });
-
-        // Sign Out Handler
-        signOutBtn.addEventListener('click', async () => {
-            try {
-                await signOut(auth);
-                window.location.reload(); // Reload to clear state
-            } catch (error) {
-                console.error("Sign Out Failed:", error);
-            }
-        });
-
-        onAuthStateChanged(auth, async (user) => {
-            if (user) {
-                // User is signed in
-                loginScreen.classList.add('hidden');
-                appContainer.classList.remove('hidden');
-
-                userId = user.uid;
-                userIdDisplay.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="mr-2"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg> <span class="mr-1 font-normal">User:</span> ${user.displayName || user.email || 'Anonymous'}`;
-                userIdDisplay.classList.remove('hidden');
-                signOutBtn.classList.remove('hidden');
-
-                attachFirestoreListeners();
-            } else {
-                // User is signed out
-                loginScreen.classList.remove('hidden');
-                appContainer.classList.add('hidden');
-                userIdDisplay.classList.add('hidden');
-                signOutBtn.classList.add('hidden');
+            unsubscribeApplicants = onSnapshot(query(collection(db, applicantsPath)), (snapshot) => {
+                applicants = snapshot.docs.map(doc => ({ ...doc.data(), id: doc.id }));
+                renderApplicants();
                 loadingOverlay.classList.add('hidden');
-            }
-        });
-
-        setupBatchDropZone();
-    } catch (e) {
-        console.error("Firebase Init Error:", e);
-        showMessage("Initialization Error", "Failed to initialize the application. Check Firebase config.");
-    }
-};
-
-const attachFirestoreListeners = () => {
-    if (unsubscribeApplicants) unsubscribeApplicants();
-    if (unsubscribeCriteria) unsubscribeCriteria();
-
-    const applicantsPath = `users/${userId}/applicants`;
-    const criteriaPath = `users/${userId}/criteria`;
-
-    unsubscribeApplicants = onSnapshot(query(collection(db, applicantsPath)), (snapshot) => {
-        applicants = snapshot.docs.map(doc => ({ ...doc.data(), id: doc.id }));
-        renderApplicants();
-        loadingOverlay.classList.add('hidden');
-    }, (err) => {
-        console.error("Error fetching applicants:", err);
-        showMessage("Error", "Could not load applicant data.");
-    });
-
-    unsubscribeCriteria = onSnapshot(query(collection(db, criteriaPath)), async (snapshot) => {
-        let criteriaList = snapshot.docs.map(doc => ({ ...doc.data(), id: doc.id }));
-        if (criteriaList.length === 0) {
-            console.log("No criteria found. Seeding with initial data...");
-            const batch = writeBatch(db);
-            initialCriteria.forEach(crit => {
-                const docRef = doc(db, criteriaPath, crit.id);
-                batch.set(docRef, crit);
+            }, (err) => {
+                console.error("Error fetching applicants:", err);
+                showMessage("Error", "Could not load applicant data.");
             });
-            await batch.commit();
-            // Listener will fire again with the new data
-        } else {
-            rankingCriteria = criteriaList;
-            renderCriteriaConfig();
-            renderApplicants(); // Re-render applicants in case criteria changed
-        }
-    }, (err) => {
-        console.error("Error fetching criteria:", err);
-        showMessage("Error", "Could not load ranking criteria.");
-    });
-};
 
-// --- START THE APP ---
-const startApp = (startTime = Date.now()) => {
-    const TIMEOUT = 5000; // 5 seconds
-    if (typeof window.pdfjsLib !== 'undefined' && typeof window.mammoth !== 'undefined') {
-        initializeAppAndData();
-    } else if (Date.now() - startTime > TIMEOUT) {
-        showMessage("Loading Error", "Failed to load external parsing libraries. Please refresh the page.");
-    } else {
-        setTimeout(() => startApp(startTime), 100);
-    }
-};
+            unsubscribeCriteria = onSnapshot(query(collection(db, criteriaPath)), async (snapshot) => {
+                let criteriaList = snapshot.docs.map(doc => ({ ...doc.data(), id: doc.id }));
+                if (criteriaList.length === 0) {
+                    console.log("No criteria found. Seeding with initial data...");
+                    const batch = writeBatch(db);
+                    initialCriteria.forEach(crit => {
+                        const docRef = doc(db, criteriaPath, crit.id);
+                        batch.set(docRef, crit);
+                    });
+                    await batch.commit();
+                    // Listener will fire again with the new data
+                } else {
+                    rankingCriteria = criteriaList;
+                    renderCriteriaConfig();
+                    renderApplicants(); // Re-render applicants in case criteria changed
+                }
+            }, (err) => {
+                console.error("Error fetching criteria:", err);
+                showMessage("Error", "Could not load ranking criteria.");
+            });
+        };
 
-window.onload = startApp;
+        // --- START THE APP ---
+        const startApp = (startTime = Date.now()) => {
+            const TIMEOUT = 5000; // 5 seconds
+            if (typeof window.pdfjsLib !== 'undefined' && typeof window.mammoth !== 'undefined') {
+                initializeAppAndData();
+            } else if (Date.now() - startTime > TIMEOUT) {
+                showMessage("Loading Error", "Failed to load external parsing libraries. Please refresh the page.");
+            } else {
+                setTimeout(() => startApp(startTime), 100);
+            }
+        };
 
-    </script >
-</body >
-</html >
+        window.onload = startApp;
+
+    </script>
+</body>
+
+</html>
