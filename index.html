@@ -1287,7 +1287,18 @@
          * we should prefer a real DOM interaction.
          */
         window.__testHooks = {
-            setExtractedText: (text) => { extractedFileText = text; },
+            /*
+             * Seed the AI input text AND enable the autofill button.
+             * In the real UI, the button is only enabled inside
+             * `handleSingleFile` after a successful parse. Tests that
+             * skip parsing need both pieces of state set; otherwise
+             * Playwright waits forever on a `disabled` button.
+             */
+            setExtractedText: (text) => {
+                extractedFileText = text;
+                const btn = document.getElementById('ai-autofill-btn');
+                if (btn) btn.disabled = false;
+            },
             runBatchWithFakeFiles: async (fileNames) => {
                 // Build minimal File-like objects. `parseFile` only reads
                 // `.name`, `.type`, and the FileReader result, so a Blob
