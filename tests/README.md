@@ -48,9 +48,13 @@ tests: Firebase initialization ordering, modal flow, table rendering,
 event delegation, toast text. They're slower (seconds) and flakier, so we
 only add one when the unit layer genuinely can't cover the case.
 
-Both the Firebase CDN and the Gemini API are intercepted by the test
-harness (see `tests/e2e/helpers.js`). No real network calls leave the test
-machine. That means:
+The Firebase CDN is intercepted by the test harness (see
+`tests/e2e/helpers.js`) and replaced with the stub bundle in
+`tests/e2e/fixtures/firebase-stubs.js`. That stub includes a fake
+`httpsCallable` implementation that dispatches to handlers registered
+on `window.__functionStubs` — so when the app calls the `aiAutofill`
+Cloud Function, it hits the test's handler instead. No real network
+calls leave the test machine. That means:
 
 - No secrets in CI.
 - No billable Firestore or Gemini usage.
@@ -75,10 +79,16 @@ Three patterns cover almost everything:
 
 1. **Static check** — "the app renders X when I do Y". Just drive the
    UI and assert with `expect(locator).toBeVisible()` etc.
-2. **Mocked Gemini** — call `installStubs(page, { geminiHandler: ... })`
-   with the handler you want. Use `geminiHappyPath(payload)` from
-   `helpers.js` if you want it to succeed, or write an inline
-   `route.fulfill({ status: 500, ... })` for a custom error.
+2. **Mocked AI** — call `installStubs(page, { aiAutofill: handler })`.
+   The handler is a plain function that receives `{ resumeText,
+   criteria }` and either returns the AI JSON (happy path) or throws
+   an Error whose `.message` contains the Gemini-style wording that
+   `src/errors.js` classifies on ("prepayment", "quota exceeded",
+   "api key not valid", etc.). Use `geminiHappyPath(payload)` from
+   `helpers.js` for success, or `defaultBillingError` for the Test 2
+   scenario. Note: handlers are serialized across the Playwright
+   bridge as source strings, so they must be self-contained — no
+   closed-over variables.
 3. **Test hooks** — if the interaction is hard to drive through real
    drag-and-drop, use `window.__testHooks` (defined in `index.html`) to
    seed state and invoke the internal function directly. Keep these

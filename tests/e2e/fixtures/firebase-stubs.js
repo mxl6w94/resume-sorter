@@ -151,7 +151,36 @@ export const writeBatch = () => {
     };
 };
 
+// ---------- firebase-functions ----------
+// The production app calls `httpsCallable(functions, 'aiAutofill')` to
+// hit the server-side Gemini proxy. We don't want real network in tests,
+// so this stub looks up the function name on `window.__functionStubs`
+// and calls whatever the test spec registered there. A spec can install
+// a happy-path stub that returns a fake applicant record, or an error
+// stub that throws something shaped like a Firebase HttpsError (a plain
+// Error whose `.message` contains the Gemini-style text our classifier
+// keys off of — e.g. "requires prepayment").
+//
+// The returned object mirrors real httpsCallable's shape: it resolves to
+// `{ data }`, which is what the app destructures.
+export const getFunctions = () => ({ _stub: true });
+export const httpsCallable = (_functions, name) => {
+    return async (payload) => {
+        const stubs = (typeof window !== 'undefined' && window.__functionStubs) || {};
+        const handler = stubs[name];
+        if (typeof handler !== 'function') {
+            throw new Error(
+                `[stub httpsCallable] no stub registered for "${name}". ` +
+                `Set window.__functionStubs.${name} in your test.`
+            );
+        }
+        const data = await handler(payload);
+        return { data };
+    };
+};
+
 // Expose the store on window for tests that want to inspect/reset it.
 if (typeof window !== 'undefined') {
     window.__firebaseStub = { store, listeners, reset: () => { store.clear(); listeners.clear(); } };
+    if (!window.__functionStubs) window.__functionStubs = {};
 }

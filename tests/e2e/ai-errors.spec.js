@@ -27,7 +27,7 @@ import { installStubs, defaultBillingError } from './helpers.js';
 test('single-upload: billing error shows actionable title + detail, not raw text', async ({ page }) => {
     // The default handler in helpers.js IS the billing error, so no
     // override needed — we just install the stubs and drive the UI.
-    await installStubs(page, { geminiHandler: defaultBillingError });
+    await installStubs(page, { aiAutofill: defaultBillingError });
     await page.goto('/');
 
     await page.getByRole('button', { name: /Add New Applicant Manually/i }).click();
@@ -64,7 +64,7 @@ test('single-upload: billing error shows actionable title + detail, not raw text
 
 test('batch-drop: all-files-same-reason → toast shows actionable reason, not just "N failed"', async ({ page }) => {
     // Same billing error for every file.
-    await installStubs(page, { geminiHandler: defaultBillingError });
+    await installStubs(page, { aiAutofill: defaultBillingError });
     await page.goto('/');
 
     const hasHook = await page.evaluate(() => !!window.__testHooks);
