@@ -98,7 +98,16 @@ const MAX_PER_HOUR = 30;
 
 // The Gemini model we proxy to. Keeping it configurable here — not on the
 // client — means swapping models never requires a frontend redeploy.
-const GEMINI_MODEL = 'gemini-2.0-flash';
+//
+// HISTORY: started on 'gemini-2.0-flash' (what the original client code
+// used). Google deprecated that model for new API keys in April 2026 —
+// existing keys kept working but keys issued after the cutover got a 404
+// with "This model is no longer available to new users." Since this
+// project's key was issued around that time, we bumped to 2.5-flash,
+// which is the current low-latency tier and supports the same JSON
+// schema / responseMimeType features we rely on. If Google deprecates
+// this one too, update the string and redeploy — no frontend change.
+const GEMINI_MODEL = 'gemini-2.5-flash';
 const GEMINI_URL = `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent`;
 
 /**
