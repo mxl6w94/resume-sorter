@@ -1,0 +1,54 @@
+# =============================================================================
+#  .github/workflows/ci.yml — Continuous integration
+# =============================================================================
+#
+# Two jobs run on every push and pull request:
+#
+#   unit — Node's built-in test runner over tests/unit/. This is cheap
+#          (seconds) and covers the pure-logic modules in src/. It's
+#          allowed to be the gate: if scoring or error classification
+#          regresses, we don't want to spend CI minutes spinning up a
+#          browser to find out.
+#
+#   e2e  — Playwright against a local http-server serving the static
+#          site. The Firebase CDN and the Gemini API are both stubbed
+#          inside the tests themselves (see tests/e2e/helpers.js), so
+#          this job does not need any secrets or external network.
+#
+# Keep both jobs fast — if they cross a minute or two, prefer splitting
+# the E2E into sharded matrix jobs rather than skipping tests.
+
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  unit:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - run: npm run test:unit
+
+  e2e:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+      - run: npm ci
+      - run: npx playwright install --with-deps chromium
+      - run: npm run test:e2e
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: playwright-report
+          path: playwright-report/
+          retention-days: 7
