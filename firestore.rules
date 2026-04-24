@@ -1,0 +1,61 @@
+/*
+ * ============================================================================
+ *  firestore.rules — Access control for the Firestore backend
+ * ============================================================================
+ *
+ * BEFORE this file existed, the project had no rules file checked in, which
+ * means the deployed rules were whatever the console had (likely the default
+ * 30-day "allow anyone" rules). That's the single largest security issue in
+ * the stack, worse than the hardcoded API key. These rules close it.
+ *
+ * MODEL
+ * -----
+ * The only data the app stores is per-user: applicants and criteria belong
+ * to the user who created them. There is no cross-user sharing, no public
+ * listings, no admin collection. So every rule reduces to: "you can read or
+ * write your own stuff; you can't touch anyone else's."
+ *
+ *   /users/{uid}/applicants/{id}
+ *   /users/{uid}/criteria/{id}
+ *
+ * Authentication is handled by Firebase Auth (Google sign-in). The rule
+ * below requires `request.auth.uid` to match the `{uid}` in the path. If
+ * you are not signed in, `request.auth` is null and all access is denied.
+ *
+ * RATE LIMITING
+ * -------------
+ * Rate limiting for the Gemini-proxy function lives in the function itself
+ * (see functions/index.js), not here. Firestore rules can't express "N
+ * writes per hour" cleanly without a counter document, and we'd rather keep
+ * the security surface here focused on data access.
+ *
+ * DEPLOY
+ * ------
+ *   firebase deploy --only firestore:rules
+ *
+ * Changes to this file do NOT take effect until you deploy. If you're
+ * iterating locally, use the Firebase emulator to test rules without
+ * deploying.
+ */
+
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Everything under /users/{uid}/... is private to that uid.
+    // The `{document=**}` wildcard recursively covers applicants,
+    // criteria, and any subcollection we might add later.
+    match /users/{userId}/{document=**} {
+      allow read, write: if request.auth != null
+                         && request.auth.uid == userId;
+    }
+
+    // Default deny for anything we haven't explicitly allowed above.
+    // Firestore's implicit default is already "deny", but we spell it
+    // out so a reader sees it at a glance.
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

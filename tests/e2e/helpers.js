@@ -4,21 +4,25 @@
  * ============================================================================
  *
  * Every E2E spec in this folder calls `installStubs(page)` before
- * navigating to the app. That helper does three important things:
+ * navigating to the app. That helper does two important things:
  *
  *   1. Intercepts every Firebase module URL and serves the stub bundle
  *      from fixtures/firebase-stubs.js. Playwright's `page.route` matches
  *      the URL glob before the browser's network layer ever sees the
  *      request — so we never actually hit Google's servers during tests.
- *   2. Intercepts the Gemini API endpoint. The default handler returns a
- *      controlled error so we can assert the UI surfaces it correctly.
- *      Individual tests override the handler for their own scenarios.
- *   3. Pre-seeds localStorage with a fake Gemini API key so the key-entry
- *      UI doesn't show up unless the test specifically wants to test
- *      that flow.
+ *      The stub bundle includes a fake `httpsCallable` that dispatches
+ *      to `window.__functionStubs[name]` — that's where each spec plugs
+ *      in its scenario (happy path, billing error, quota, etc).
+ *   2. Registers a default `aiAutofill` handler on window.__functionStubs
+ *      that throws the billing-style error used in manual Test 2. Specs
+ *      that want a different scenario override the handler before
+ *      triggering the UI action.
  *
- * Keeping this shared makes every spec short and focused — tests describe
- * ONE scenario each, not all the boilerplate.
+ * NOTE: we no longer intercept the Gemini REST endpoint. The browser
+ * never calls Gemini directly anymore — it calls our Cloud Function,
+ * and that call is mocked at the httpsCallable layer. We also no longer
+ * seed an API key into localStorage; the client-side API-key UI was
+ * removed when Gemini went server-side.
  */
 
 import fs from 'node:fs';
@@ -29,7 +33,8 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 // Read the stub bundle ONCE at startup. Playwright sends the same bytes
 // to the browser regardless of which Firebase module was requested, and
-// that's fine — the bundle exports the union of all three modules.
+// that's fine — the bundle exports the union of all four modules
+// (app, auth, firestore, functions).
 const STUB_SOURCE = fs.readFileSync(
     path.join(__dirname, 'fixtures', 'firebase-stubs.js'),
     'utf8'
@@ -37,11 +42,12 @@ const STUB_SOURCE = fs.readFileSync(
 
 export const installStubs = async (page, options = {}) => {
     const {
-        apiKey = 'fake-test-key',
-        // geminiHandler receives the Playwright Route and should call
-        // route.fulfill / route.abort. Default is "billing error" — the
-        // scenario from manual Test 2. Override per-test as needed.
-        geminiHandler = defaultBillingError,
+        // aiAutofill handler. Receives the payload { resumeText, criteria }
+        // and must either return the AI JSON (happy path) or throw an
+        // Error whose `.message` matches the Gemini-style text that
+        // src/errors.js keys off of. Default is the billing error from
+        // manual Test 2.
+        aiAutofill = defaultBillingError,
     } = options;
 
     // Route every firebasejs CDN URL to our stub bundle. Order matters —
@@ -55,49 +61,41 @@ export const installStubs = async (page, options = {}) => {
         });
     });
 
-    // Gemini API. The glob deliberately catches both the v1beta path and
-    // any alpha/alpha-paid variants Google might redirect to.
-    await page.route('**/generativelanguage.googleapis.com/**', geminiHandler);
-
-    // Seed the API key so we skip the "please enter your key" prompt
-    // unless the test explicitly clears it.
-    await page.addInitScript((k) => {
-        window.localStorage.setItem('geminiApiKey', k);
-    }, apiKey);
+    // Register the aiAutofill function stub on the page before any app
+    // code runs. `addInitScript` injects this ahead of every navigation,
+    // so the stub is in place by the time the app's module imports
+    // resolve httpsCallable.
+    await page.addInitScript((handlerSource) => {
+        window.__functionStubs = window.__functionStubs || {};
+        // The handler is serialized as a source string because Playwright
+        // can't pass live closures across the bridge. We eval it in-page
+        // to get a real function back.
+        // eslint-disable-next-line no-eval
+        window.__functionStubs.aiAutofill = eval('(' + handlerSource + ')');
+    }, aiAutofill.toString());
 };
 
-// ---------- canned Gemini responses ----------
+// ---------- canned aiAutofill handlers ----------
 
-// Matches the exact error Google returned during manual Test 2.
-export const defaultBillingError = async (route) => {
-    await route.fulfill({
-        status: 403,
-        contentType: 'application/json',
-        body: JSON.stringify({
-            error: {
-                code: 403,
-                status: 'PERMISSION_DENIED',
-                message: 'Your prepayment credits are depleted. Please go to AI Studio at https://ai.studio/projects to manage your project and billing.',
-            },
-        }),
-    });
+// Matches the exact error message Gemini returned during manual Test 2.
+// The Cloud Function re-throws Gemini's message verbatim inside an
+// HttpsError, which on the browser surfaces as an Error whose .message
+// contains the "prepayment" keyword our classifier looks for.
+export const defaultBillingError = function defaultBillingError(_payload) {
+    const err = new Error(
+        'Your prepayment credits are depleted. Please go to AI Studio at https://ai.studio/projects to manage your project and billing.'
+    );
+    err.code = 'functions/permission-denied';
+    throw err;
 };
 
 // Returns a fully-formed applicant payload so the "happy path" tests can
 // assert that a file upload results in a new row appearing in the table.
-export const geminiHappyPath = (payload) => async (route) => {
-    const body = {
-        candidates: [{
-            content: {
-                parts: [{
-                    text: JSON.stringify(payload),
-                }],
-            },
-        }],
-    };
-    await route.fulfill({
-        status: 200,
-        contentType: 'application/json',
-        body: JSON.stringify(body),
-    });
+// Usage: installStubs(page, { aiAutofill: geminiHappyPath({ name: ..., email: ... }) })
+export const geminiHappyPath = (payload) => {
+    // Serialize the payload into the handler source so Playwright can
+    // ship it into the browser context without a live closure.
+    const json = JSON.stringify(payload);
+    // eslint-disable-next-line no-new-func
+    return new Function('_payload', `return ${json};`);
 };

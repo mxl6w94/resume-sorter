@@ -124,18 +124,13 @@
                 </p>
                 <p class="text-sm text-gray-500">PDF or DOCX files will be automatically parsed, scored, and added to
                     the list below.</p>
-                <div id="batch-api-key-container"
-                    class="hidden mt-4 max-w-md mx-auto p-3 border border-amber-400 bg-amber-50 rounded-md">
-                    <label for="batchApiKeyInput" class="block text-xs font-medium text-amber-700">A Gemini API Key is
-                        required for batch processing:</label>
-                    <div class="flex items-center mt-1">
-                        <input type="password" id="batchApiKeyInput" placeholder="Your API key is stored locally"
-                            class="flex-grow px-2 py-1 border border-amber-300 rounded-l-md shadow-sm sm:text-xs">
-                        <button id="batch-save-api-key-btn"
-                            class="px-3 py-1 bg-amber-500 hover:bg-amber-600 text-white text-xs font-medium rounded-r-md border border-amber-500">Save
-                            & Retry</button>
-                    </div>
-                </div>
+                <!--
+                    The API-key input used to live here. It's gone because
+                    the Gemini key is now held in Google Secret Manager
+                    and accessed only by the server-side Cloud Function
+                    in functions/index.js. The browser no longer needs
+                    (and no longer has any way to provide) the key.
+                -->
             </div>
         </div>
 
@@ -266,6 +261,7 @@
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
         import { getAuth, signInAnonymously, onAuthStateChanged, signInWithCustomToken, GoogleAuthProvider, signInWithPopup, signOut } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
         import { getFirestore, collection, doc, onSnapshot, setDoc, deleteDoc, writeBatch, query } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+        import { getFunctions, httpsCallable } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-functions.js";
 
         /*
          * Pure-logic modules live in /src so they can be unit-tested from
@@ -278,7 +274,16 @@
         import { describeAiError, ErrorCode } from "./src/errors.js";
 
         // --- GLOBAL STATE AND CONSTANTS ---
-        let db, auth;
+        let db, auth, functions;
+        /*
+         * `aiAutofillCallable` is the browser-side handle for the
+         * Cloud Function that proxies Gemini. It's populated in
+         * `initializeAppAndData` once Firebase is ready. We keep it
+         * module-scoped so both `handleAiAutofill` (single-upload
+         * path) and `handleBatchUpload` can share it without passing
+         * it around.
+         */
+        let aiAutofillCallable;
         let userId;
         let applicants = [];
         let rankingCriteria = [];
@@ -580,13 +585,10 @@
                         Autofill with AI
                     </button>
                     <p id="ai-error" class="mt-2 text-xs text-red-600"></p>
-                    <div id="api-key-input-container" class="hidden mt-3 p-3 border border-amber-400 bg-amber-50 rounded-md">
-                        <label for="apiKeyInput" class="block text-xs font-medium text-amber-700">Enter your Gemini API Key:</label>
-                        <div class="flex items-center mt-1">
-                            <input type="password" id="apiKeyInput" placeholder="Your API key is stored locally" class="flex-grow px-2 py-1 border border-amber-300 rounded-l-md shadow-sm sm:text-xs">
-                            <button id="save-api-key-btn" class="px-3 py-1 bg-amber-500 hover:bg-amber-600 text-white text-xs font-medium rounded-r-md border border-amber-500">Save</button>
-                        </div>
-                    </div>
+                    <!--
+                        API-key entry used to live here too. See the
+                        comment on batch-drop-zone above for rationale.
+                    -->
                 </div>
 
                 <form id="applicant-form" class="space-y-4">
@@ -711,64 +713,54 @@
             }
         };
 
+        /*
+         * handleAiAutofill — wire the "Autofill with AI" button. The
+         * previous version of this function dealt with three
+         * orthogonal things: (1) reading the user's API key from
+         * localStorage or a form field, (2) prompting for one if it
+         * was missing, and (3) actually calling Gemini. Only (3)
+         * remains — the key lives in Secret Manager now and the
+         * Cloud Function enforces auth, so the browser's job is
+         * simply to call `getApplicantDataFromAi` (which wraps the
+         * callable) and surface any error via the classifier.
+         */
         const handleAiAutofill = async () => {
-            const apiKey = localStorage.getItem('geminiApiKey') || document.getElementById('apiKeyInput').value;
             const aiErrorEl = document.getElementById('ai-error');
-            const apiKeyContainer = document.getElementById('api-key-input-container');
 
             if (!extractedFileText.trim()) {
-                aiErrorEl.textContent = "Please upload and parse a file first."; return;
-            }
-            if (!apiKey) {
-                apiKeyContainer.classList.remove('hidden');
-                aiErrorEl.textContent = "A Gemini API Key is required for this feature."; return;
-            } else {
-                localStorage.setItem('geminiApiKey', apiKey);
+                aiErrorEl.textContent = "Please upload and parse a file first.";
+                return;
             }
 
             const autofillBtn = document.getElementById('ai-autofill-btn');
             autofillBtn.disabled = true;
             autofillBtn.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="animate-spin mr-2"><path d="M21 12a9 9 0 1 1-6.219-8.56"></path></svg> Processing...`;
             aiErrorEl.textContent = '';
+            delete aiErrorEl.dataset.errorCode;
 
             try {
-                const extractedData = await getApplicantDataFromAi(extractedFileText, apiKey);
-
-                // Populate form fields
+                const extractedData = await getApplicantDataFromAi(extractedFileText);
                 Object.keys(extractedData).forEach(key => {
                     const inputEl = document.getElementById(key);
-                    if (inputEl) {
-                        inputEl.value = extractedData[key];
-                    }
+                    if (inputEl) inputEl.value = extractedData[key];
                 });
-
             } catch (error) {
                 /*
-                 * --- AI ERROR UX (manual test #2 fix) ---
-                 * Previously we showed the raw `error.message` from Gemini
-                 * directly to the user. That message is often accurate but
-                 * unhelpful — e.g. "Your prepayment credits are depleted"
-                 * doesn't tell the user that Google Cloud's $300 free
-                 * credit does not apply to the Gemini API, which is the
-                 * actual confusion they hit. We now route every thrown
-                 * error through src/errors.js `describeAiError` which
-                 * returns a stable `{code, title, detail}` triple. The
-                 * code is used by our E2E tests (stable across Google
-                 * error-text rewrites), the title+detail are shown to the
-                 * user, and we keep the original message in console.debug
-                 * for support/debug purposes.
+                 * Errors from the Cloud Function arrive as normal
+                 * JS Errors whose `.message` preserves whatever the
+                 * server threw. For Gemini-origin problems
+                 * (billing, quota, etc.) the server rethrows
+                 * Gemini's message verbatim, so our existing
+                 * `classifyAiError` / `describeAiError` logic in
+                 * src/errors.js still pattern-matches correctly.
+                 * That means the UX-test assertions from PR #1 keep
+                 * passing.
                  */
                 console.error("Error during AI autofill:", error);
                 const described = describeAiError(error);
                 console.debug("[AI raw message]", error?.message || String(error));
                 aiErrorEl.textContent = `${described.title}: ${described.detail}`;
                 aiErrorEl.dataset.errorCode = described.code;
-                // Only re-show the key-entry field for error classes where
-                // changing the key would actually help. For billing/quota/
-                // network errors, a new key wouldn't fix anything.
-                if (described.code === ErrorCode.INVALID_KEY || described.code === ErrorCode.PERMISSION) {
-                    apiKeyContainer.classList.remove('hidden');
-                }
             } finally {
                 autofillBtn.disabled = false;
                 autofillBtn.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="mr-2"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"></polygon></svg> Autofill with AI`;
@@ -909,23 +901,15 @@
             });
         };
 
+        /*
+         * handleBatchUpload — unchanged in shape, but the API-key
+         * gate at the top is gone. The Cloud Function enforces auth
+         * itself (it rejects requests with no Firebase Auth token),
+         * so "can this user call AI?" becomes "is this user signed
+         * in?" — which the surrounding app already guarantees
+         * because we hide `batch-drop-zone` until after login.
+         */
         const handleBatchUpload = async (files) => {
-            let apiKey = localStorage.getItem('geminiApiKey');
-            const keyContainer = document.getElementById('batch-api-key-container');
-
-            if (!apiKey) {
-                keyContainer.classList.remove('hidden');
-                document.getElementById('batch-save-api-key-btn').onclick = () => {
-                    const newKey = document.getElementById('batchApiKeyInput').value;
-                    if (newKey) {
-                        localStorage.setItem('geminiApiKey', newKey);
-                        keyContainer.classList.add('hidden');
-                        handleBatchUpload(files); // Retry the upload
-                    }
-                };
-                return;
-            }
-
             loadingOverlay.classList.remove('hidden');
 
             // Pre-filter: only process PDF and DOCX files; skip others silently.
@@ -971,7 +955,7 @@
                 statusEl.textContent = `Processing ${i + 1} of ${totalFiles}: ${file.name}`;
                 try {
                     const fileText = await parseFile(file);
-                    const applicantData = await getApplicantDataFromAi(fileText, apiKey);
+                    const applicantData = await getApplicantDataFromAi(fileText);
 
                     const docRef = doc(collection(db, applicantsPath));
                     await setDoc(docRef, { ...applicantData, id: docRef.id });
@@ -1016,56 +1000,31 @@
             }
         };
 
-        const getApplicantDataFromAi = async (text, apiKey) => {
-            const aiCriteria = rankingCriteria.filter(c => c.isAiPowered);
-            const schemaProperties = { "name": { "type": "STRING" }, "email": { "type": "STRING" }, "notes": { "type": "STRING" } };
-            const requiredFields = ["name", "email", "notes"];
-            const dynamicPrompts = aiCriteria.map(c => {
-                let instruction = ''; let isValidForSchema = false;
-                switch (c.type) {
-                    case 'numeric':
-                        schemaProperties[c.id] = { "type": "NUMBER" };
-                        instruction = `A number from ${c.min || 0} to ${c.max || 10} based on this instruction: ${c.aiPrompt}`;
-                        isValidForSchema = true; break;
-                    case 'yes_no':
-                        schemaProperties[c.id] = { "type": "STRING", "enum": ["Yes", "No"] };
-                        instruction = `Answer 'Yes' or 'No' based on this instruction: ${c.aiPrompt}`;
-                        isValidForSchema = true; break;
-                    case 'tiered':
-                        const levels = (c.tiers || []).map(t => t.level).filter(Boolean);
-                        if (levels.length > 0) {
-                            schemaProperties[c.id] = { "type": "STRING", "enum": levels };
-                            instruction = `Choose one of these options [${levels.join(', ')}] based on this instruction: ${c.aiPrompt}`;
-                            isValidForSchema = true;
-                        } break;
-                }
-                if (isValidForSchema) { requiredFields.push(c.id); return `"${c.id}": "${instruction}"`; }
-                return null;
-            }).filter(p => p !== null).join(',\n');
-
-            const prompt = `You are an expert HR assistant. Based on the following resume text, extract the candidate's information. Format the output as a JSON object. Resume Text: --- ${text} --- Desired JSON Output Structure: { "name": "Candidate's full name", "email": "Candidate's email address", "notes": "A brief 2-3 sentence summary of key qualifications.", ${dynamicPrompts} }`;
-            const generationConfig = { responseMimeType: "application/json", responseSchema: { type: "OBJECT", properties: schemaProperties, required: requiredFields } };
-            const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`;
-            const payload = { contents: [{ role: "user", parts: [{ text: prompt }] }], generationConfig };
-
-            // Exponential backoff for retries
-            let response;
-            for (let i = 0; i < 4; i++) {
-                response = await fetch(apiUrl, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
-                if (response.status !== 429) break;
-                await new Promise(res => setTimeout(res, (2 ** i) * 1000));
+        /*
+         * getApplicantDataFromAi — now just a thin client for the
+         * Cloud Function. All the prompt/schema construction lives
+         * server-side in functions/index.js so the model choice,
+         * schema shape, and retry policy can change without a
+         * frontend redeploy. The API key used to be passed in as
+         * an argument; we no longer accept one because there is no
+         * key in the browser to pass.
+         *
+         * Firebase Callable rejections come back as Errors whose
+         * `.message` preserves the text we threw on the server
+         * (HttpsError preserves its message field). That means
+         * `src/errors.js classifyAiError` still pattern-matches
+         * correctly on "prepayment", "quota", etc. — no change
+         * needed to the error-UX layer.
+         */
+        const getApplicantDataFromAi = async (text) => {
+            if (!aiAutofillCallable) {
+                throw new Error('AI autofill is not ready yet. Try again in a moment.');
             }
-
-            if (!response.ok) {
-                const errorData = await response.json();
-                throw new Error(errorData?.error?.message || `API request failed with status ${response.status}`);
-            }
-
-            const result = await response.json();
-            const aiJsonText = result.candidates?.[0]?.content?.parts?.[0]?.text;
-            if (!aiJsonText) throw new Error("AI returned an unexpected data structure.");
-
-            return JSON.parse(aiJsonText);
+            const result = await aiAutofillCallable({
+                resumeText: text,
+                criteria: rankingCriteria,
+            });
+            return result.data;
         };
 
         // --- EVENT LISTENERS INITIALIZATION ---
@@ -1146,11 +1105,12 @@
             if (e.target.id === 'ai-autofill-btn') {
                 handleAiAutofill(); return;
             }
-            if (e.target.id === 'save-api-key-btn') {
-                const apiKey = document.getElementById('apiKeyInput').value;
-                if (apiKey) localStorage.setItem('geminiApiKey', apiKey);
-                document.getElementById('api-key-input-container').classList.add('hidden'); return;
-            }
+            // NOTE: the old `save-api-key-btn` handler was deleted when we
+            // moved Gemini calls behind a Cloud Function. There is no longer
+            // any API key to save on the client, and the corresponding UI
+            // (`api-key-input-container`) was removed from the markup. If
+            // you're chasing a mystery reference to `apiKeyInput` anywhere,
+            // the answer is: it is gone on purpose.
 
             // Criteria config buttons
             if (e.target.id === 'save-criteria-btn') {
@@ -1313,12 +1273,14 @@
                 // Override parseFile via shadowing isn't clean from here,
                 // so we provide a separate hook that skips parsing and
                 // goes straight to the AI call — that's what we're
-                // testing anyway.
-                const apiKey = localStorage.getItem('geminiApiKey') || 'stub';
+                // testing anyway. Since the AI path now goes through the
+                // Cloud Function, the test Firebase stub installs a fake
+                // `aiAutofill` callable that throws whichever error the
+                // spec wants to simulate. No localStorage, no apiKey arg.
                 const errors = [];
                 for (const f of fakes) {
                     try {
-                        await getApplicantDataFromAi('stub text', apiKey);
+                        await getApplicantDataFromAi('stub text');
                     } catch (err) {
                         errors.push({ fileName: f.name, ...describeAiError(err) });
                     }
@@ -1359,6 +1321,17 @@
                 const app = initializeApp(firebaseConfig);
                 db = getFirestore(app);
                 auth = getAuth(app);
+                /*
+                 * `getFunctions` with no region argument uses the default
+                 * region ("us-central1"). This MUST match the `region`
+                 * declared on the Cloud Function in functions/index.js —
+                 * if they disagree, the browser will hit a nonexistent
+                 * endpoint and get a 404 with no useful error text. If
+                 * you ever deploy to a different region, change BOTH
+                 * places at once.
+                 */
+                functions = getFunctions(app);
+                aiAutofillCallable = httpsCallable(functions, 'aiAutofill');
 
                 const loginScreen = document.getElementById('login-screen');
                 const appContainer = document.getElementById('app-container');

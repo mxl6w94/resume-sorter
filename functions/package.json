@@ -1,0 +1,19 @@
+{
+  "name": "resume-sorter-functions",
+  "description": "Cloud Functions backend for resume-sorter. Proxies Gemini calls so the API key never reaches the browser.",
+  "type": "module",
+  "main": "index.js",
+  "engines": {
+    "node": "20"
+  },
+  "private": true,
+  "scripts": {
+    "serve": "firebase emulators:start --only functions",
+    "deploy": "firebase deploy --only functions",
+    "logs": "firebase functions:log"
+  },
+  "dependencies": {
+    "firebase-admin": "^12.5.0",
+    "firebase-functions": "^6.0.0"
+  }
+}
